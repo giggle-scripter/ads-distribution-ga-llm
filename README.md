@@ -4,11 +4,14 @@ Dự án này triển khai thuật toán di truyền tiên tiến được tăng
 Hệ thống này phân phối quảng cáo cho các vị trí trên bảng quảng cáo trong khi tối đa hóa doanh thu, số lượng quảng cáo được gán và tuân thủ các ràng buộc kinh doanh khác nhau (như conflict).
 
 ## Bài toán
-The advertising distribution problem involves:
-- **Billboards**: Physical structures with 1-6 advertising sides (slots)
-- **Advertisements**: Digital/physical ads with different base prices
-- **Constraints**: Conflict relationships between ads, no duplicate assignments
-- **Objectives**: Maximize total revenue and slot utilization
+Các đối tượng xuất hiện trong bài toán
+- **Billboards**: Các biển quảng cáo, có từ 1-6 mặt (slots)
+- **Advertisements**: Các quảng cáo, chứa thông tin về base price (giá sẽ trả cho billboard company ứng với billboard có 6 mặt) và max budget (số tiền lớn nhất mà người muốn gắn quảng cáo sẽ trả cho billboard company).
+- **Conflict**: Các cặp quảng cáo không thể cùng đặt cùng billboard do là đối thủ cạnh tranh.
+- **Constraints**: 
+  - Các ràng buộc cứng: Conflict (không có 2 cặp conflict nào được gán cùng 1 billboard), Unique (mỗi quảng cáo xuất hiện đúng 1 lần trên toàn bộ billboard).
+  - Các ràng buộc mềm: Max budget (một quảng cáo nếu có chi phí thực tế lớn hơn max budget thì sẽ chỉ trả max budget cho công ty quảng cáo đó).
+- **Objectives**: Tối đa hóa doanh thu của công ty cung cấp biển quảng cáo (revenue)
 ### Revenue Model
 Doanh thu được tính bằng cách sử dụng các hệ số nhân dựa trên số slots của biển quảng cáo:
 - 1 slot: 2.0× multiplier (premium placement)
@@ -19,6 +22,28 @@ Doanh thu được tính bằng cách sử dụng các hệ số nhân dựa tr�
 - 6 slots: 1.0× multiplier (standard rate)
 
 Để chỉnh sửa các thông số này, bạn có thể thay đổi các giá trị trong `problem.py`, phần `SLOTS_FACTOR` trong class `Problem`.
+
+## Thuật toán
+Trong dự án này, nhóm đưa ra 2 thuật toán chính để giải bài toán:
+### Genetic Algorithm (GA)
+Thuật toán GA được sử dụng với
+- Cá thể: Được mã hóa dưới dạng một mảng sol, trong đó `sol[i]=j` nghĩa là slot i được gán quảng cáo j. Nếu `sol[i]=-1` thì slot i không được gán quảng cáo nào
+- Lai ghép: Sử dụng phép lai ghép Uniform Crossover, nghĩa là duyệt mỗi vị trí và xem xác suất để lựa chọn giá trị tại vị trí đó theo cha hay mẹ.
+- Đột biến: Chọn 1 vị trí (slot) và unassign (đưa về chưa gán) hoặc assign new.
+- Selection: Sử dụng Top-K Selection để chọn cá thể cha mẹ.
+- Replacement: Luôn giữ lại một vài cá thể tốt nhất của quần thể cũ.
+### LLM-GA
+Sử dụng LLM như là một phương pháp để thoát khỏi tối ưu cục bộ. Quy trình tại mỗi vòng generation vẫn giống hệt GA. Tuy nhiên nếu sau một vài thế hệ liên tiếp không cải thiện được lời giải, sẽ:
+1. Chọn 1 vài cá thể theo chiến lược nào đó từ quần thể (sau bước replacement).
+2. Với mỗi cá thể, xây dựng prompt tương ứng với problem context và solution.
+3. Gửi prompt và yêu cầu LLM trả về một/một chuỗi các transformation để biến đổi lời giải hiện có thành một lời giải mới.
+4. Thêm các cá thể mới vào quần thể rồi thực hiện sắp xếp và lựa chọn.
+
+Các transformation được cung cấp:
+- `unassigned`: Unassign một vài vị trí.
+- `assign-new`: Assign một slot với 1 ad mới.
+- `swap-assign`: Chọn 2 vị trí và hoán đổi giá trị gán tại 2 vị trí đó (hoán đổi 2 ad).
+- `swap-billboard`: Chọn 2 billboard và hoán đổi tất cả các ad trên 2 billboard (nếu số mặt khác nhau thì một vài ad trên billboard nhiều mặt hơn được giữ lại.)
 
 ## Kiến trúc hệ thống
 ### Core Modules
@@ -50,7 +75,7 @@ Doanh thu được tính bằng cách sử dụng các hệ số nhân dựa tr�
 - **requirements.txt**: Danh sách các thư viện Python cần thiết.
 ## Getting Started
 ### Yêu cầu hệ thống
-- **Python**: Version 3.13 or higher
+- **Python**: Version 3.11 or higher
 - **IDE**: VSCode (recommended) or any Python IDE
 - **Google AI API**: Access to Gemini models
 ### Download and Install
@@ -87,7 +112,8 @@ Cấu trúc file cần tuân theo định dạng đã mô tả trong `problem.py
 - Line 1: num_billboards num_slots num_ads
 - Line 2: slot assignments (which billboard each slot belongs to)
 - Line 3: ad base prices
-- Line 4: number of conflicts
+- Line 4: ad max budgets
+- Line 5: number of conflicts
 - Next lines: conflict pairs (ad1_id ad2_id)
 #### 2. **Đọc từ console**
 Đọc từ console bằng cách sử dụng hàm `read_console()` trong `problem.py`:
