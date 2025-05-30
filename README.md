@@ -81,7 +81,7 @@ Các transformation được cung cấp:
 ### Download and Install
 **Clone/Download the Project**
 ```bash
-git clone https://github.com/trietp1253201581/ads-distribution-ga-llm.git
+git clone https://github.com/giggle-scripter/ads-distribution-ga-llm.git
 ```
 ### Thiết lập môi trường
 #### 1. **Cài đặt Python 3.13 trở lên**
