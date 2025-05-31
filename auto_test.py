@@ -8,6 +8,7 @@ from problem import read_file, Problem
 from llm_support import LLMSupporter, PromptBuilder
 from exact_alg import branch_and_bound
 from evo import ga, llm_ga
+from heuristic import hill_climbing
 
 # Load enviroment variables
 load_dotenv()
@@ -42,6 +43,12 @@ def test_llm_ga(problem: Problem, problem_name: str=None):
     print(f"LLM GA best solution for problem {problem_name}", best.chromosome)
     print(stats)
     
+def test_hill_climbing(problem: Problem, problem_name: str=None):
+    sol, stats = hill_climbing(problem, max_iterations=50000, 
+                               num_restarts=10, time_limit=1000)
+    print(f'HillClimbing best solution for problem {problem_name}', sol)
+    print(stats)
+    
 NUM_OF_TEST = 9
 TEST_NAME_TEMPLATE = "test/test_{id}.txt"
 
@@ -57,6 +64,9 @@ def test_all(test_from: int = 1, test_to: int = NUM_OF_TEST):
         
         print("\nTest Standard GA")
         test_std_ga(problem, problem_name=str(i))
+        
+        print('\nTest Hill Climbing')
+        test_hill_climbing(problem, problem_name=str(i))
         
         print("\nTest LLM GA")
         test_llm_ga(problem, problem_name=str(i))
