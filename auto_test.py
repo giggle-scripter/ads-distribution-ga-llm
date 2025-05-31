@@ -38,7 +38,7 @@ def test_llm_ga(problem: Problem, problem_name: str=None):
                          pc=0.8, pm=0.1, elite_ratio=0.1,
                          llm_supporter=llm_supporter,
                          prompt_builder=prompt_builder,
-                         max_no_improve=40, max_llm_call=6,
+                         max_no_improve=45, max_llm_call=6,
                          debug=False)
     print(f"LLM GA best solution for problem {problem_name}", best.chromosome)
     print(stats)
