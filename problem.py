@@ -302,7 +302,7 @@ def read_file(filename: str) -> Problem:
     return problem
 
 
-def random_generate(num_billboards: int, num_ads: int) -> Problem:
+def random_generate(num_billboards: int, num_ads: int, conflict_rate: float = 0.4) -> Problem:
     """
     Generate a random problem instance for testing purposes.
     
@@ -314,6 +314,7 @@ def random_generate(num_billboards: int, num_ads: int) -> Problem:
     Args:
         num_billboards (int): Number of billboards to generate
         num_ads (int): Number of ads to generate
+        conflict_rate (float): Probability of conflict between any two ads, from 0.0 to 1.0 (default 0.4)
         
     Returns:
         Problem: Randomly generated problem instance
@@ -344,7 +345,7 @@ def random_generate(num_billboards: int, num_ads: int) -> Problem:
     for i in range(num_ads - 1):
         for j in range(i + 1, num_ads):  # Avoid self-conflicts and duplicates
             # 40% chance of conflict between any two ads
-            if random.random() < 0.4:
+            if random.random() < conflict_rate:
                 conflict_ads[i][j] = True
                 conflict_ads[j][i] = True
                 

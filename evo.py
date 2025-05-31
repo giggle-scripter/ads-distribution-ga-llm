@@ -17,6 +17,18 @@ from typing import Literal
 from problem import Problem
 from llm_support import LLMSupporter, PromptBuilder
 import prompt_template as pt
+import time
+
+def _print_with_debug(msg: str, debug: bool = False):
+    """
+    Print message with debug option.
+    
+    Args:
+        msg (str): Message to print
+        debug (bool): If True, prints the message; otherwise does nothing
+    """
+    if debug:
+        print(msg)
 
 
 class Individual:
@@ -350,7 +362,8 @@ def topk_selection(population: Population, k: int, select_size: int) -> list[Ind
 
 
 def ga(num_gen: int, pop_size: int, problem: Problem,
-       pc: float = 0.8, pm: float = 0.1, elite_ratio: float = 0.1) -> Individual:
+       pc: float = 0.8, pm: float = 0.1, elite_ratio: float = 0.1,
+       debug: bool=True) -> tuple[Individual, dict]:
     """
     Standard Genetic Algorithm implementation.
     
@@ -367,11 +380,13 @@ def ga(num_gen: int, pop_size: int, problem: Problem,
         pc (float): Crossover probability (0.8 = 80% chance)
         pm (float): Mutation probability (0.1 = 10% chance)
         elite_ratio (float): Fraction of population to preserve as elite (0.1 = 10%)
+        debug (bool): If True, prints debug information during execution
         
     Returns:
         Individual: Best solution found
     """
     # Initialize population
+    start_time = time.time()
     population = Population(pop_size)
     population.random_generate(problem)
     
@@ -430,17 +445,26 @@ def ga(num_gen: int, pop_size: int, problem: Problem,
         assigned_count = problem.cal_assigned_cnt(sol)
         budget_penalty = problem.cal_budget_penalty(sol)
         
-        print(f'Gen {gen+1}, best fitness = {best.fitness:.2f}, '
+        _print_with_debug(f'Gen {gen+1}, best fitness = {best.fitness:.2f}, '
               f'violations = {violations}, revenue = {revenue:.2f}, '
               f'budget penalty = {budget_penalty} '
-              f'assigned slots = {assigned_count}')
-        
-    return best
+              f'assigned slots = {assigned_count}', debug)
+    end_time = time.time()
+    stats = {
+        'solve_time': end_time - start_time,
+        'best_violation': violations,
+        'best_revenue': revenue,
+        'best_assigned_count': assigned_count,
+        'best_budget_penalty': budget_penalty,
+        'best_fitness': best.fitness
+    }
+    return best, stats
 
 def llm_crossover(p1: Individual, p2: Individual,
                   prompt_builder: PromptBuilder,
                   llm_supporter: LLMSupporter,
-                  problem: Problem) -> tuple[Individual, Individual]:
+                  problem: Problem,
+                  debug: bool=True) -> tuple[Individual, Individual]:
     """
     Perform LLM-based crossover between two parent individuals.
     
@@ -450,6 +474,7 @@ def llm_crossover(p1: Individual, p2: Individual,
         prompt_builder (PromptBuilder): LLM prompt builder for generating crossover prompts
         llm_supporter (LLMSupporter): LLM interface for executing the crossover
         problem (Problem): Problem instance to solve
+        debug (bool): If True, prints debug information during execution
     Returns:
         tuple[Individual, Individual]: Two offspring individuals created by LLM
     """
@@ -464,17 +489,17 @@ def llm_crossover(p1: Individual, p2: Individual,
     if json_response is None:
         return None, None
     if 'children' not in json_response or len(json_response['children']) != 2:
-        print("LLM crossover response is invalid or does not contain two children.")
+        _print_with_debug("LLM crossover response is invalid or does not contain two children.", debug)
         return None, None
     
     if 'solution' not in json_response['children'][0] or \
        'solution' not in json_response['children'][1]:
-        print("LLM crossover response does not contain solutions.")
+        _print_with_debug("LLM crossover response does not contain solutions.", debug)
         return None, None
     
     if not problem.check_sol(json_response['children'][0]['solution']) or \
        not problem.check_sol(json_response['children'][1]['solution']):
-        print("LLM crossover produced invalid solutions.")
+        _print_with_debug("LLM crossover produced invalid solutions.", debug)
         return None, None
     
     c1 = Individual()
@@ -488,7 +513,8 @@ def llm_crossover(p1: Individual, p2: Individual,
 def llm_mutation(individual: Individual,
                  prompt_builder: PromptBuilder,
                  llm_supporter: LLMSupporter,
-                 problem: Problem) -> Individual:
+                 problem: Problem,
+                 debug: bool=True) -> Individual:
     """
     Perform LLM-based mutation on an individual.
 
@@ -497,6 +523,7 @@ def llm_mutation(individual: Individual,
         prompt_builder (PromptBuilder): LLM prompt builder for generating crossover prompts
         llm_supporter (LLMSupporter): LLM interface for executing the crossover
         problem (Problem): Problem instance to solve
+        debug (bool): If True, prints debug information during execution
 
     Returns:
         Individual: Cá thể mới sau khi đột biến
@@ -511,10 +538,10 @@ def llm_mutation(individual: Individual,
     if json_response is None:
         return None
     if 'solution' not in json_response:
-        print("LLM mutation response is invalid or does not contain a solution.")
+        _print_with_debug("LLM mutation response is invalid or does not contain a solution.", debug)
         return None
     if problem.check_sol(json_response['solution']) is False:
-        print("LLM mutation produced an invalid solution.")
+        _print_with_debug("LLM mutation produced an invalid solution.", debug)
         return None
     new_individual = Individual()
     new_individual.chromosome = json_response['solution']
@@ -525,7 +552,8 @@ def llm_mutation(individual: Individual,
 def llm_ga(num_gen: int, pop_size: int, 
            problem: Problem, llm_supporter: LLMSupporter, prompt_builder: PromptBuilder, 
            pc: float = 0.8, pm: float = 0.1, elite_ratio: float = 0.1,
-           max_no_improve: int = 40, llm_pop_size: int = 20) -> Individual:
+           max_no_improve: int = 40, max_llm_call: int = 10,
+           debug: bool=True) -> tuple[Individual, dict]:
     """
     LLM-Enhanced Genetic Algorithm implementation.
     
@@ -545,12 +573,13 @@ def llm_ga(num_gen: int, pop_size: int,
         pm (float): Mutation probability  
         elite_ratio (float): Elite preservation ratio
         max_no_improve (int): Maximum generations without improvement before LLM intervention
-        llm_pop_size (int): Population size for LLM-enhanced solutions
+        max_llm_call (int): Maximum times of LLM call. 
+        debug (bool): If True, prints debug information during execution
         
     Returns:
         Individual: Best solution found
     """
-    
+    start_time = time.time()
     # Initialize population
     population = Population(pop_size)
     population.random_generate(problem)
@@ -558,6 +587,7 @@ def llm_ga(num_gen: int, pop_size: int,
     best = None
     
     no_improve_count = 0  # Counter for stagnation detection
+    llm_call_cnt = 0
     use_llm_flag = False  # Flag to indicate if LLM should be used
     
     # Evolution loop
@@ -585,16 +615,17 @@ def llm_ga(num_gen: int, pop_size: int,
                     offspring.extend([child1, child2])
                     
         else:
-            print("Using LLM to create offspring...")
+            _print_with_debug("Using LLM to create offspring...", debug)
+            llm_call_cnt += 1
             call_cnt = 0
-            while len(offspring) < pop_size and call_cnt < 50:  # Limit LLM calls to avoid excessive costs
+            while len(offspring) < pop_size and call_cnt < 40:  # Limit LLM calls to avoid excessive costs
                 if random.random() < pc:
                     call_cnt += 1
                     parent1, parent2 = topk_selection(population, k=6, select_size=2)
                     c1, c2 = llm_crossover(parent1, parent2, prompt_builder, llm_supporter, problem)
                     
                     if c1 is None or c2 is None:
-                        print("Failed in crossover")
+                        _print_with_debug("Failed in crossover", debug)
                         continue
                     
                     if random.random() < pm:
@@ -639,18 +670,27 @@ def llm_ga(num_gen: int, pop_size: int,
         assigned_count = problem.cal_assigned_cnt(sol)
         budget_penalty = problem.cal_budget_penalty(sol)
         
-        print(f'Gen {gen+1}, best fitness = {best.fitness:.2f}, '
+        _print_with_debug(f'Gen {gen+1}, best fitness = {best.fitness:.2f}, '
               f'violations = {violations}, revenue = {revenue:.2f}, '
               f'budget penalty = {budget_penalty} '
-              f'assigned slots = {assigned_count}')
+              f'assigned slots = {assigned_count}', debug)
         
         if use_llm_flag:
             no_improve_count = 0
             use_llm_flag = False
         
-        if no_improve_count >= max_no_improve:
+        if no_improve_count >= max_no_improve and llm_call_cnt < max_llm_call:
             # If no improvement for too long, use LLM to suggest transformations
-            print(f'No improvement for {no_improve_count} generations, next gen will use LLM...')
+            _print_with_debug(f'No improvement for {no_improve_count} generations, next gen will use LLM...', debug)
             use_llm_flag = True
-        
-    return best
+    end_time = time.time()
+    stats = {
+        'solve_time': end_time - start_time,
+        'best_violation': violations,
+        'best_revenue': revenue,
+        'best_assigned_count': assigned_count,
+        'best_budget_penalty': budget_penalty,
+        'reach_limit_llm': llm_call_cnt >= max_llm_call,
+        'best_fitness': best.fitness
+    }
+    return best, stats

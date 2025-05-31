@@ -1,3 +1,2 @@
-from test import test_std_ga, test_llm_ga
-#test_std_ga()
-test_llm_ga()
+from test import test_all
+test_all(test_from=1, test_to=5)

@@ -24,7 +24,27 @@ Doanh thu được tính bằng cách sử dụng các hệ số nhân dựa tr�
 Để chỉnh sửa các thông số này, bạn có thể thay đổi các giá trị trong `problem.py`, phần `SLOTS_FACTOR` trong class `Problem`.
 
 ## Thuật toán
-Trong dự án này, nhóm đưa ra 2 thuật toán chính để giải bài toán:
+Trong dự án này, nhóm đưa ra 3 thuật toán chính để giải bài toán:
+### Branch and Bound (Exact Algorithm)
+Thuật toán chính xác sử dụng kỹ thuật quay lui (backtracking) kết hợp với cắt nhánh (branch and bound) để tìm ra nghiệm tối ưu toàn cục.
+
+**Đặc điểm chính:**
+- **Không gian tìm kiếm**: Duyệt toàn bộ không gian nghiệm có thể, mỗi slot có thể được gán một quảng cáo hoặc để trống (-1)
+- **Kiểm tra vi phạm**: Tại mỗi bước gán, thuật toán kiểm tra:
+  - Ràng buộc conflict: Không có 2 quảng cáo xung đột được gán cùng một billboard
+  - Ràng buộc unique: Mỗi quảng cáo chỉ được sử dụng một lần
+  - Ràng buộc ngân sách: Chi phí thực tế không vượt quá ngân sách tối đa (tùy chọn)
+- **Cắt nhánh (Pruning)**: 
+  - Tính toán cận trên (upper bound) cho doanh thu có thể đạt được từ các slot chưa được gán
+  - Nếu doanh thu hiện tại + cận trên ≤ nghiệm tốt nhất đã tìm được, cắt bỏ nhánh này
+  - Cận trên được tính bằng cách sắp xếp các cặp (slot, quảng cáo) theo doanh thu tiềm năng giảm dần
+- **Ứng cử viên**: Tại mỗi slot, thuật toán xem xét:
+  - Tùy chọn để slot trống (không gán quảng cáo)
+  - Tất cả các quảng cáo chưa được sử dụng và không vi phạm ràng buộc
+
+**Ưu điểm**: Đảm bảo tìm được nghiệm tối ưu toàn cục
+**Nhược điểm**: Độ phức tạp tăng theo cấp số nhân, chỉ phù hợp với bài toán kích thước nhỏ và trung bình
+
 ### Genetic Algorithm (GA)
 Thuật toán GA được sử dụng với
 - Cá thể: Được mã hóa dưới dạng một mảng sol, trong đó `sol[i]=j` nghĩa là slot i được gán quảng cáo j. Nếu `sol[i]=-1` thì slot i không được gán quảng cáo nào
