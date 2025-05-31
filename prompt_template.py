@@ -19,6 +19,7 @@ But if the revenue exceeds the maximum budget of the ad, then the penalty will b
 - Each solution is a list of integers, where each integer represents the index of the ad assigned to the corresponding slot. The length of the list corresponds to the number of slots available across all billboards. 
   And note that if sol[i] = -1, then the slot i is empty (unassigned).
 - sol[i] has the value is index of ad, not base price or maximum budget of ad.
+- Ensure that length of solution MUST BE EQUAL TO NUM OF SLOTS IN PROBLEM CONTEXT.
   
 # Input:
 -----
@@ -91,7 +92,7 @@ But if the revenue exceeds the maximum budget of the ad, then the penalty will b
 - You should consider each ad will not exceed its maximum budget, but if maximum budget is high, then exceeding is allowed to increase revenue.
 - Each solution is a list of integers, where each integer represents the index of the ad assigned to the corresponding slot. The length of the list corresponds to the number of slots available across all billboards. 
   And note that if sol[i] = -1, then the slot i is empty (unassigned).
-  
+- Ensure that length of solution MUST BE EQUAL TO NUM OF SLOTS IN PROBLEM CONTEXT.
 # Input:
 -----
 PROBLEM CONTEXT:

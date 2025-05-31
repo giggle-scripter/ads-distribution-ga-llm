@@ -1,3 +1,0 @@
-Gen 499, best fitness = 9652.00, violations = 0, revenue = 9452.00, assigned slots = 20
-Gen 500, best fitness = 9652.00, violations = 0, revenue = 9452.00, assigned slots = 20
-[12, 3, 18, 15, 7, 24, 10, 21, 11, 1, 26, 13, 8, 20, 16, 0, 5, 22, 27, 9]

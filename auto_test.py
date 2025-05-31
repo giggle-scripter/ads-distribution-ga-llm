@@ -27,18 +27,18 @@ def test_branch_and_bound(problem: Problem, problem_name: str=None):
     print(stats)
     
 def test_std_ga(problem: Problem, problem_name: str=None):
-    best, stats = ga(num_gen=300, pop_size=60, problem=problem,
+    best, stats = ga(num_gen=500, pop_size=100, problem=problem,
                      pc=0.8, pm=0.1, elite_ratio=0.1,
                      debug=False)
     print(f"GA best solution for problem {problem_name}", best.chromosome)
     print(stats)
     
 def test_llm_ga(problem: Problem, problem_name: str=None):
-    best, stats = llm_ga(num_gen=300, pop_size=60, problem=problem,
+    best, stats = llm_ga(num_gen=500, pop_size=100, problem=problem,
                          pc=0.8, pm=0.1, elite_ratio=0.1,
                          llm_supporter=llm_supporter,
                          prompt_builder=prompt_builder,
-                         max_no_improve=45, max_llm_call=6,
+                         max_no_improve=50, max_llm_call=8,
                          debug=False)
     print(f"LLM GA best solution for problem {problem_name}", best.chromosome)
     print(stats)
@@ -58,7 +58,7 @@ def test_all(test_from: int = 1, test_to: int = NUM_OF_TEST):
         test_file = TEST_NAME_TEMPLATE.format(id=i)
         problem = read_file(test_file)
         
-        if problem.num_slots < 20:
+        if problem.num_slots <= 20:
             print("** Test Branch and Bound **")
             test_branch_and_bound(problem, problem_name=str(i))
         
