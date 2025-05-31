@@ -565,23 +565,52 @@ def llm_ga(num_gen: int, pop_size: int,
         offspring = []
         
         # Standard GA operations (same as regular GA)
-        while len(offspring) < pop_size:
-            if random.random() < pc:
-                parent1, parent2 = topk_selection(population, k=6, select_size=2)
-                # Standard crossover
-                child1, child2 = crossover(parent1, parent2)
-                
-                # Apply mutation with probability pm
-                if random.random() < pm:
-                    child1 = mutation(child1, problem)
-                if random.random() < pm:
-                    child2 = mutation(child2, problem)
+        if not use_llm_flag:
+            while len(offspring) < pop_size:
+                if random.random() < pc:
+                    parent1, parent2 = topk_selection(population, k=6, select_size=2)
+                    # Standard crossover
+                    child1, child2 = crossover(parent1, parent2)
                     
-                
-                child1.cal_fitness(problem)
-                child2.cal_fitness(problem)
-                
-                offspring.extend([child1, child2])
+                    # Apply mutation with probability pm
+                    if random.random() < pm:
+                        child1 = mutation(child1, problem)
+                    if random.random() < pm:
+                        child2 = mutation(child2, problem)
+                        
+                    
+                    child1.cal_fitness(problem)
+                    child2.cal_fitness(problem)
+                    
+                    offspring.extend([child1, child2])
+                    
+        else:
+            print("Using LLM to create offspring...")
+            call_cnt = 0
+            while len(offspring) < pop_size and call_cnt < 50:  # Limit LLM calls to avoid excessive costs
+                if random.random() < pc:
+                    call_cnt += 1
+                    parent1, parent2 = topk_selection(population, k=6, select_size=2)
+                    c1, c2 = llm_crossover(parent1, parent2, prompt_builder, llm_supporter, problem)
+                    
+                    if c1 is None or c2 is None:
+                        print("Failed in crossover")
+                        continue
+                    
+                    if random.random() < pm:
+                        c1_llm = llm_mutation(c1, prompt_builder, llm_supporter, problem)
+                        if c1_llm is not None:
+                            c1 = mutation(c1_llm, problem)
+                    if random.random() < pm:
+                        c2_llm = llm_mutation(c2, prompt_builder, llm_supporter, problem)
+                        if c2_llm is not None:
+                            c2 = mutation(c2_llm, problem) 
+                            
+                    c1.cal_fitness(problem)
+                    c2.cal_fitness(problem)
+                    
+                    offspring.extend([c1, c2])
+                    
                 
         # Elite preservation and population replacement
         sorted_population = sorted(population.inds, key=lambda x: x.fitness, reverse=True)
@@ -603,60 +632,6 @@ def llm_ga(num_gen: int, pop_size: int,
         else:
             no_improve_count += 1
             
-        
-        if use_llm_flag:
-            use_llm_flag = False
-            print("Use LLM to suggest transformations...")
-            llm_inds = topk_selection(population, k=llm_pop_size, select_size=llm_pop_size)
-            llm_pop = Population(llm_pop_size)
-            llm_pop.inds = llm_inds
-            llm_offs = []
-            while len(llm_offs) < llm_pop_size:
-                # Select two parents from LLM population
-                parent1, parent2 = random.sample(llm_pop.inds, 2)
-                
-                if random.random() >= pc:
-                    continue
-                
-                # Use LLM to create offspring
-                c1, c2 = llm_crossover(parent1, parent2, prompt_builder, llm_supporter, problem)
-                print(f'\t Crossover')
-                
-                if c1 is None or c2 is None:
-                    continue
-                
-                if random.random() < pm:
-                    c1_llm = llm_mutation(c1, prompt_builder, llm_supporter, problem)
-                    print(f'\t Mutation 1')
-                    if c1_llm is not None:
-                        c1 = mutation(c1_llm, problem)
-                if random.random() < pm:
-                    c2_llm = llm_mutation(c2, prompt_builder, llm_supporter, problem)
-                    print(f'\t Mutation 2')
-                    if c2_llm is not None:
-                        c2 = mutation(c2_llm, problem) 
-                        
-                c1.cal_fitness(problem)
-                c2.cal_fitness(problem)
-                
-                llm_offs.extend([c1, c2])
-            # Combine LLM offspring with current population
-            population.inds.extend(llm_offs)
-            population.inds.sort(key=lambda x: x.fitness, reverse=True)
-            population.inds = population.inds[:pop_size]  # Keep only top pop_size individuals
-            
-            # Update best solution after LLM intervention
-            current_best = population.inds[0]
-            if best is None or current_best.fitness > best.fitness:
-                best = current_best
-                
-            no_improve_count = 0
-            
-        if no_improve_count >= max_no_improve:
-            # If no improvement for too long, use LLM to suggest transformations
-            print(f'No improvement for {no_improve_count} generations, next gen will use LLM...')
-            use_llm_flag = True
-            
         # Progress reporting
         sol = best.chromosome
         violations = problem.cal_violations(sol)
@@ -668,5 +643,14 @@ def llm_ga(num_gen: int, pop_size: int,
               f'violations = {violations}, revenue = {revenue:.2f}, '
               f'budget penalty = {budget_penalty} '
               f'assigned slots = {assigned_count}')
+        
+        if use_llm_flag:
+            no_improve_count = 0
+            use_llm_flag = False
+        
+        if no_improve_count >= max_no_improve:
+            # If no improvement for too long, use LLM to suggest transformations
+            print(f'No improvement for {no_improve_count} generations, next gen will use LLM...')
+            use_llm_flag = True
         
     return best

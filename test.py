@@ -53,7 +53,7 @@ ga_config = {
 }
 
 llm_ga_config = ga_config.copy()
-llm_ga_config['max_no_improve'] = 30
+llm_ga_config['max_no_improve'] = 49
 llm_ga_config['llm_pop_size'] = 30  # Number of solutions to send to LLM for improvement
 
 # Set random seed for reproducible results

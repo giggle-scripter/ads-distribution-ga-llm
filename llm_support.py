@@ -54,9 +54,9 @@ class PromptBuilder:
         context = "This problem has the following data:\n"
         
         # Basic problem dimensions
-        context += f"- Number of billboards: {problem.num_billboards} (indexed 0 to {problem.num_billboards-1})\n"
-        context += f'- Number of slots: {problem.num_slots} (indexed 0 to {problem.num_slots-1})\n'
-        context += f'- Number of ads: {problem.num_ads} (indexed 0 to {problem.num_ads-1})\n'
+        context += f"- Number of billboards: {problem.num_billboards} (from 0 to {problem.num_billboards-1})\n"
+        context += f'- Number of slots: {problem.num_slots} (from 0 to {problem.num_slots-1})\n'
+        context += f'- Number of ads: {problem.num_ads} (from 0 to {problem.num_ads-1})\n'
         
         # Slot-to-billboard mapping
         slot_billboard_mapping = [f"{slot_idx}:{billboard_id}" 
