@@ -15,7 +15,8 @@ Key Components:
 import random
 from typing import Literal
 from problem import Problem
-from llm_support import LLMSupporter, apply_transformations
+from llm_support import LLMSupporter, PromptBuilder
+import prompt_template as pt
 
 
 class Individual:
@@ -181,15 +182,11 @@ def crossover(p1: Individual, p2: Individual) -> tuple[Individual, Individual]:
             
     return c1, c2
 
-
-def mutation(p: Individual, problem: Problem) -> Individual:
+def _mutation_unassign(p: Individual, problem: Problem) -> Individual:
     """
-    Create a mutated version of an individual.
+    Unassign a random slot in the individual.
     
-    Mutation process:
-    1. Select a random slot to mutate
-    2. 30% chance: Unassign the slot (set to -1)
-    3. 70% chance: Assign a different random ad to the slot
+    This mutation sets one random slot to -1 (unassigned).
     
     Args:
         p (Individual): Parent individual to mutate
@@ -202,23 +199,124 @@ def mutation(p: Individual, problem: Problem) -> Individual:
     c = Individual()
     c.chromosome = p.chromosome.copy()
     
-    # Select random slot to mutate
+    # Select random slot to unassign
     slot_idx = random.choice(range(len(c.chromosome)))
-    
-    if random.random() < 0.3:
-        # Unassign the slot (30% chance)
-        c.chromosome[slot_idx] = -1
-    else:
-        # Assign a different random ad (70% chance)
-        # Get all possible ads except the currently assigned one
-        current_ad = c.chromosome[slot_idx]
-        available_ads = [x for x in range(problem.num_ads) if x != current_ad]
-        
-        if available_ads:  # Make sure we have options
-            new_ad = random.choice(available_ads)
-            c.chromosome[slot_idx] = new_ad
+    c.chromosome[slot_idx] = -1  # Unassign the slot
     
     return c
+
+def _mutation_assign_new(p: Individual, problem: Problem) -> Individual:
+    """
+    Assign a random ad to a random slot in the individual.
+    
+    This mutation selects a random slot and assigns it a new ad (not currently assigned).
+    
+    Args:
+        p (Individual): Parent individual to mutate
+        problem (Problem): Problem instance for context
+        
+    Returns:
+        Individual: Mutated offspring individual
+    """
+    # Create copy of parent
+    c = Individual()
+    c.chromosome = p.chromosome.copy()
+    
+    # Select random slot to assign
+    slot_idx = random.choice(range(len(c.chromosome)))
+    
+    # Get all possible ads except the currently assigned one
+    current_ad = c.chromosome[slot_idx]
+    available_ads = [x for x in range(problem.num_ads) if x != current_ad]
+    
+    if available_ads:  # Make sure we have options
+        new_ad = random.choice(available_ads)
+        c.chromosome[slot_idx] = new_ad
+    
+    return c
+
+def _mutation_swap_assign(p: Individual, problem: Problem) -> Individual:
+    """
+    Swap the assignment of two random slots in the individual.
+    
+    This mutation selects two random slots and swaps their assigned ads.
+    
+    Args:
+        p (Individual): Parent individual to mutate
+        problem (Problem): Problem instance for context
+        
+    Returns:
+        Individual: Mutated offspring individual
+    """
+    # Create copy of parent
+    c = Individual()
+    c.chromosome = p.chromosome.copy()
+    
+    # Select two different random slots to swap
+    slot_idx1, slot_idx2 = random.sample(range(len(c.chromosome)), 2)
+    
+    # Swap the assignments
+    c.chromosome[slot_idx1], c.chromosome[slot_idx2] = (
+        c.chromosome[slot_idx2], c.chromosome[slot_idx1])
+    
+    return c
+
+def _muation_swap_billboard(p: Individual, problem: Problem) -> Individual:
+    """
+    Swap the assignment of all ads in two random billboards.
+    This mutation selects two random billboards and swaps their assigned ads.
+    Args:
+        p (Individual): Parent individual to mutate
+        problem (Problem): Problem instance for context
+    Returns:
+        Individual: Mutated offspring individual
+    """
+    # Create copy of parent
+    c = Individual()
+    c.chromosome = p.chromosome.copy()
+
+    billboard1_id, billboard2_id = random.sample(range(problem.num_billboards), 2)
+    billboard1_slots = [i for i, b in enumerate(problem.slots) if b == billboard1_id]
+    billboard2_slots = [i for i, b in enumerate(problem.slots) if b == billboard2_id]
+    
+    min_slots = min(len(billboard1_slots), len(billboard2_slots))
+    # Swap assignments for the minimum number of slots
+    for i in range(min_slots):
+        slot1 = billboard1_slots[i]
+        slot2 = billboard2_slots[i]
+        c.chromosome[slot1], c.chromosome[slot2] = c.chromosome[slot2], c.chromosome[slot1]
+        
+    return c
+
+def mutation(p: Individual, problem: Problem) -> Individual:
+    """
+    Apply mutation to an individual with a random mutation strategy.
+    
+    The mutation process randomly selects one of the following strategies:
+    1. Unassign a random slot
+    2. Assign a new ad to a random slot
+    3. Swap assignments of two random slots
+    4. Swap all ads in two random billboards
+    
+    Args:
+        p (Individual): Parent individual to mutate
+        problem (Problem): Problem instance for context
+        
+    Returns:
+        Individual: Mutated offspring individual
+    """
+    mutation_strategies = [
+        _mutation_unassign,
+        _mutation_assign_new,
+        _mutation_swap_assign,
+        _muation_swap_billboard
+    ]
+    
+    # Randomly select a mutation strategy
+    mutation_func = random.choice(mutation_strategies)
+    
+    # Apply the selected mutation
+    return mutation_func(p, problem)
 
 
 def topk_selection(population: Population, k: int, select_size: int) -> list[Individual]:
@@ -339,13 +437,95 @@ def ga(num_gen: int, pop_size: int, problem: Problem,
         
     return best
 
+def llm_crossover(p1: Individual, p2: Individual,
+                  prompt_builder: PromptBuilder,
+                  llm_supporter: LLMSupporter,
+                  problem: Problem) -> tuple[Individual, Individual]:
+    """
+    Perform LLM-based crossover between two parent individuals.
+    
+    Args:
+        p1 (Individual): First parent individual
+        p2 (Individual): Second parent individual
+        prompt_builder (PromptBuilder): LLM prompt builder for generating crossover prompts
+        llm_supporter (LLMSupporter): LLM interface for executing the crossover
+        problem (Problem): Problem instance to solve
+    Returns:
+        tuple[Individual, Individual]: Two offspring individuals created by LLM
+    """
+    
+    crossover_prompt = pt.CROSSOVER_TEMPLATE
+    problem_context = prompt_builder.get_problem_context(problem)
+    prompt = prompt_builder.build(solution_1=p1.chromosome,
+                                  solution_2=p2.chromosome,
+                                  problem_context=problem_context,
+                                  template=crossover_prompt)
+    json_response = llm_supporter.get_json_response(prompt)
+    if json_response is None:
+        return None, None
+    if 'children' not in json_response or len(json_response['children']) != 2:
+        print("LLM crossover response is invalid or does not contain two children.")
+        return None, None
+    
+    if 'solution' not in json_response['children'][0] or \
+       'solution' not in json_response['children'][1]:
+        print("LLM crossover response does not contain solutions.")
+        return None, None
+    
+    if not problem.check_sol(json_response['children'][0]['solution']) or \
+       not problem.check_sol(json_response['children'][1]['solution']):
+        print("LLM crossover produced invalid solutions.")
+        return None, None
+    
+    c1 = Individual()
+    c2 = Individual()
+    
+    c1.chromosome = json_response['children'][0]['solution']
+    c2.chromosome = json_response['children'][1]['solution']
+    
+    return c1, c2
+
+def llm_mutation(individual: Individual,
+                 prompt_builder: PromptBuilder,
+                 llm_supporter: LLMSupporter,
+                 problem: Problem) -> Individual:
+    """
+    Perform LLM-based mutation on an individual.
+
+    Args:
+        individual (Individual): Cá thể cần đột biến
+        prompt_builder (PromptBuilder): LLM prompt builder for generating crossover prompts
+        llm_supporter (LLMSupporter): LLM interface for executing the crossover
+        problem (Problem): Problem instance to solve
+
+    Returns:
+        Individual: Cá thể mới sau khi đột biến
+    """
+    mutation_prompt = pt.MUTATION_TEMPLATE
+    problem_context = prompt_builder.get_problem_context(problem)
+    prompt = prompt_builder.build(solution=individual.chromosome,
+                                  problem_context=problem_context,
+                                  template=mutation_prompt)
+    
+    json_response = llm_supporter.get_json_response(prompt)
+    if json_response is None:
+        return None
+    if 'solution' not in json_response:
+        print("LLM mutation response is invalid or does not contain a solution.")
+        return None
+    if problem.check_sol(json_response['solution']) is False:
+        print("LLM mutation produced an invalid solution.")
+        return None
+    new_individual = Individual()
+    new_individual.chromosome = json_response['solution']
+    
+    return new_individual
+    
 
 def llm_ga(num_gen: int, pop_size: int, 
-           problem: Problem, llm_supporter: LLMSupporter, 
+           problem: Problem, llm_supporter: LLMSupporter, prompt_builder: PromptBuilder, 
            pc: float = 0.8, pm: float = 0.1, elite_ratio: float = 0.1,
-           max_no_improvement: int = 10, max_transform_inds: int = 5,
-           transform_chosen_policy: Literal['rand', 'topk'] = 'rand',
-           max_time_transform: int = 5) -> Individual:
+           max_no_improve: int = 40, llm_pop_size: int = 20) -> Individual:
     """
     LLM-Enhanced Genetic Algorithm implementation.
     
@@ -360,26 +540,25 @@ def llm_ga(num_gen: int, pop_size: int,
         pop_size (int): Population size  
         problem (Problem): Problem instance to solve
         llm_supporter (LLMSupporter): LLM interface for transformations
+        prompt_builder (PromptBuilder): LLM prompt builder for generating prompts
         pc (float): Crossover probability
         pm (float): Mutation probability  
         elite_ratio (float): Elite preservation ratio
-        max_no_improvement (int): Generations without improvement before LLM intervention
-        max_transform_inds (int): Number of individuals to transform with LLM
-        transform_chosen_policy (str): How to choose individuals ('rand' or 'topk')
-        max_time_transform (int): Maximum number of LLM interventions
+        max_no_improve (int): Maximum generations without improvement before LLM intervention
+        llm_pop_size (int): Population size for LLM-enhanced solutions
         
     Returns:
         Individual: Best solution found
     """
-    # Initialize tracking variables
-    no_improvement = 0    # Generations without improvement
-    transform_cnt = 0     # Number of LLM interventions used
     
     # Initialize population
     population = Population(pop_size)
     population.random_generate(problem)
     elite_cnt = int(max(1, pop_size * elite_ratio))
     best = None
+    
+    no_improve_count = 0  # Counter for stagnation detection
+    use_llm_flag = False  # Flag to indicate if LLM should be used
     
     # Evolution loop
     for gen in range(num_gen):
@@ -389,82 +568,94 @@ def llm_ga(num_gen: int, pop_size: int,
         while len(offspring) < pop_size:
             if random.random() < pc:
                 parent1, parent2 = topk_selection(population, k=6, select_size=2)
+                # Standard crossover
                 child1, child2 = crossover(parent1, parent2)
                 
+                # Apply mutation with probability pm
                 if random.random() < pm:
                     child1 = mutation(child1, problem)
                 if random.random() < pm:
                     child2 = mutation(child2, problem)
+                    
                 
                 child1.cal_fitness(problem)
                 child2.cal_fitness(problem)
                 
                 offspring.extend([child1, child2])
                 
-        # Population replacement
+        # Elite preservation and population replacement
         sorted_population = sorted(population.inds, key=lambda x: x.fitness, reverse=True)
         elite_individuals = sorted_population[:elite_cnt]
         non_elite_individuals = sorted_population[elite_cnt:]
         
+        # Combine non-elite with offspring and randomly sample
         replacement_pool = non_elite_individuals + offspring
         selected_non_elite = random.sample(replacement_pool, k=population.size - elite_cnt)
         
+        # Form new population
         population.inds = elite_individuals + selected_non_elite
         
-        # Update best solution and track improvement
-        current_best = population.inds[0]
+        # Update best solution
+        current_best = population.inds[0]  # Elite is sorted, so first is best
         if best is None or current_best.fitness > best.fitness:
             best = current_best
-            no_improvement = 0  # Reset counter
-        elif best.fitness == current_best.fitness:
-            no_improvement += 1  # Increment stagnation counter
+            no_improve_count = 0
+        else:
+            no_improve_count += 1
             
-        # LLM Transformation Phase
-        # Trigger when stuck and still have transformations available
-        if (no_improvement > max_no_improvement and 
-            transform_cnt < max_time_transform):
+        
+        if use_llm_flag:
+            use_llm_flag = False
+            print("Use LLM to suggest transformations...")
+            llm_inds = topk_selection(population, k=llm_pop_size, select_size=llm_pop_size)
+            llm_pop = Population(llm_pop_size)
+            llm_pop.inds = llm_inds
+            llm_offs = []
+            while len(llm_offs) < llm_pop_size:
+                # Select two parents from LLM population
+                parent1, parent2 = random.sample(llm_pop.inds, 2)
+                
+                if random.random() >= pc:
+                    continue
+                
+                # Use LLM to create offspring
+                c1, c2 = llm_crossover(parent1, parent2, prompt_builder, llm_supporter, problem)
+                print(f'\t Crossover')
+                
+                if c1 is None or c2 is None:
+                    continue
+                
+                if random.random() < pm:
+                    c1_llm = llm_mutation(c1, prompt_builder, llm_supporter, problem)
+                    print(f'\t Mutation 1')
+                    if c1_llm is not None:
+                        c1 = mutation(c1_llm, problem)
+                if random.random() < pm:
+                    c2_llm = llm_mutation(c2, prompt_builder, llm_supporter, problem)
+                    print(f'\t Mutation 2')
+                    if c2_llm is not None:
+                        c2 = mutation(c2_llm, problem) 
+                        
+                c1.cal_fitness(problem)
+                c2.cal_fitness(problem)
+                
+                llm_offs.extend([c1, c2])
+            # Combine LLM offspring with current population
+            population.inds.extend(llm_offs)
+            population.inds.sort(key=lambda x: x.fitness, reverse=True)
+            population.inds = population.inds[:pop_size]  # Keep only top pop_size individuals
             
-            transform_cnt += 1
-            print(f'No improvement for {no_improvement} generations, '
-                  f'applying LLM transformations (attempt {transform_cnt})')
+            # Update best solution after LLM intervention
+            current_best = population.inds[0]
+            if best is None or current_best.fitness > best.fitness:
+                best = current_best
+                
+            no_improve_count = 0
             
-            # Select individuals for transformation
-            transformation_individuals = []
-            if transform_chosen_policy == 'rand':
-                # Random selection
-                num_to_select = min(max_transform_inds, len(population.inds))
-                transformation_individuals = random.sample(population.inds, k=num_to_select)
-            elif transform_chosen_policy == 'topk':
-                # Select best individuals
-                transformation_individuals = topk_selection(
-                    population, k=max_transform_inds, select_size=max_transform_inds)
-                
-            # Apply LLM transformations
-            new_individuals = []
-            for individual in transformation_individuals:
-                # Get transformation suggestions from LLM
-                transformations = llm_supporter.get_transformation(
-                    individual.chromosome, problem)
-                
-                if transformations:  # Only proceed if LLM provided suggestions
-                    # Create new individual with transformations applied
-                    new_individual = Individual()
-                    new_individual.chromosome = apply_transformations(
-                        individual.chromosome, transformations, problem)
-                    new_individual.cal_fitness(problem)
-                    new_individuals.append(new_individual)
-                
-            # Integrate transformed individuals into population
-            if new_individuals:
-                population.inds.extend(new_individuals)
-                population.inds.sort(key=lambda x: x.fitness, reverse=True)
-                population.inds = population.inds[:pop_size]  # Maintain population size
-                
-                # Update best if transformation found better solution
-                if population.inds[0].fitness > best.fitness:
-                    best = population.inds[0]
-            
-            no_improvement = 0  # Reset stagnation counter after transformation
+        if no_improve_count >= max_no_improve:
+            # If no improvement for too long, use LLM to suggest transformations
+            print(f'No improvement for {no_improve_count} generations, next gen will use LLM...')
+            use_llm_flag = True
             
         # Progress reporting
         sol = best.chromosome

@@ -186,6 +186,15 @@ class Problem:
             int: Number of slots that have been assigned ads
         """
         return sum(1 for x in sol if x >= 0)
+    
+    def check_sol(self, sol: list) -> bool:
+        if len(sol) != self.num_slots:
+            print(f"Solution length {len(sol)} does not match number of slots {self.num_slots}")
+            return False
+        if any(ad_id < -1 or ad_id >= self.num_ads for ad_id in sol if ad_id != -1):
+            print(f"Invalid ad_id in solution: {sol}")
+            return False
+        return True
 
 
 def read_console() -> Problem:

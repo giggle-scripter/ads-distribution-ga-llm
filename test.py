@@ -38,11 +38,11 @@ genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
 model = genai.GenerativeModel('gemini-2.0-flash')
 
 # Import LLM support components
-from llm_support import PromptBuilder, LLMSupporter, SOL_PRO_TEMPLATE
+from llm_support import PromptBuilder, LLMSupporter
 
 # Set up LLM integration
-prompt_builder = PromptBuilder(SOL_PRO_TEMPLATE)
-llm_supporter = LLMSupporter(model, prompt_builder)
+prompt_builder = PromptBuilder()
+llm_supporter = LLMSupporter(model)
 
 ga_config = {
     "num_gen": 500,
@@ -52,17 +52,9 @@ ga_config = {
     "elite_ratio": 0.1,
 }
 
-llm_ga_config = {
-    "num_gen": 500,
-    "pop_size": 100,
-    "pc": 0.8,
-    "pm": 0.1,
-    "elite_ratio": 0.1,
-    "max_no_improvement": 40,
-    "max_transform_inds": 8,
-    "transform_chosen_policy": 'topk',
-    "max_time_transform": 8
-}
+llm_ga_config = ga_config.copy()
+llm_ga_config['max_no_improve'] = 30
+llm_ga_config['llm_pop_size'] = 30  # Number of solutions to send to LLM for improvement
 
 # Set random seed for reproducible results
 random.seed(42)
@@ -153,11 +145,10 @@ def test_llm_ga():
         pc=llm_ga_config["pc"],
         pm=llm_ga_config["pm"],
         elite_ratio=llm_ga_config["elite_ratio"],
-        max_no_improvement=llm_ga_config["max_no_improvement"],
-        max_transform_inds=llm_ga_config["max_transform_inds"],
-        transform_chosen_policy=llm_ga_config["transform_chosen_policy"],
+        max_no_improve=llm_ga_config['max_no_improve'],
+        llm_pop_size=llm_ga_config["llm_pop_size"],
         llm_supporter=llm_supporter,
-        max_time_transform=llm_ga_config["max_time_transform"]
+        prompt_builder=prompt_builder
     )
     
     print("\n=== Optimization Complete ===")
