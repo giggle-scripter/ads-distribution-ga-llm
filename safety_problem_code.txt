@@ -1,0 +1,76 @@
+class Problem:
+    # Revenue multiplier factors based on number of billboard sides
+    # Fewer sides = higher multiplier (more premium placement)
+    SLOTS_FACTOR = {{
+        1: 2.0,  # Single-sided billboard - highest revenue
+        2: 1.7,  # Two-sided billboard
+        3: 1.5,  # Three-sided billboard
+        4: 1.3,  # Four-sided billboard
+        5: 1.1,  # Five-sided billboard
+        6: 1.0   # Six-sided billboard - base revenue
+    }}
+    
+    def __init__(self, num_billboards: int, num_slots: int, num_ads: int):
+        self.num_billboards = num_billboards  # Total billboards in the system
+        self.num_slots = num_slots            # Total slots across all billboards
+        self.num_ads = num_ads                # Total ads to be placed
+        
+        # Initialize data structures
+        self.billboards = [0] * num_billboards    # Number of sides for each billboard
+        self.slots = [-1] * num_slots             # Which billboard each slot belongs to
+        self.ads_base_price = [0] * num_ads       # Base price for each advertisement
+        self.ads_max_budget = [0] * num_ads
+        self.conflict_ads = [{{}} for _ in range(num_ads)]  # Conflict relationships
+        # Notes: conflict_ads is a list of dict, so you must use conflict_ads[ads_id].get(...), no use conflict_ads.get(ads_id,...)
+        
+    def get_num_slots_of(self, billboard_id: int) -> int:
+        return self.billboards[billboard_id]
+    
+    def get_slot_factor_of(self, billboard_id: int) -> float:
+        num_sides = self.billboards[billboard_id]
+        return Problem.SLOTS_FACTOR[num_sides]
+        
+    def cal_violations(self, sol: list[int]) -> int:
+        total_violations = 0
+        
+        # Check all pairs of slots for violations
+        for i in range(len(sol) - 1):
+            for j in range(i + 1, len(sol)):
+                # Skip if either slot is unassigned
+                if sol[i] == -1 or sol[j] == -1:
+                    continue
+                
+                # Check for conflict violations (conflicting ads on same billboard)
+                if (self.slots[i] == self.slots[j] and  # Same billboard
+                    sol[i] in self.conflict_ads and     # First ad has conflicts
+                    self.conflict_ads[sol[i]].get(sol[j], False)):  # Conflicts with second ad
+                    total_violations += 2  # Heavy penalty for conflict violations
+                
+                # Check for duplicate violations (same ad in multiple slots)
+                if sol[i] == sol[j] and sol[i] >= 0:
+                    total_violations += 1  # Penalty for duplicate assignment
+                    
+        return total_violations
+        
+    def cal_revenue(self, sol: list) -> float:
+        total_revenue = 0
+        
+        for i in range(len(sol)):
+            # Skip unassigned slots
+            if sol[i] == -1:
+                continue
+                
+            # Get billboard information for this slot
+            billboard_id = self.slots[i]
+            multiplier_factor = self.get_slot_factor_of(billboard_id)
+            
+            # Get ad information
+            ad_id = sol[i]
+            ad_base_price = self.ads_base_price[ad_id]
+            
+            # Calculate revenue for this slot
+            slot_revenue = multiplier_factor * ad_base_price
+            slot_revenue = min(self.ads_max_budget[ad_id], slot_revenue)
+            total_revenue += slot_revenue
+            
+        return total_revenue

@@ -49,7 +49,7 @@ class Individual:
     DEFAULT_FITNESS = -1e8      # Default fitness for uninitialized individuals
     VIOLATIONS_FACTOR = -1e6    # Heavy penalty for constraint violations
     REVENUE_FACTOR = 1          # Reward for revenue generation
-    ASSIGNED_CNT_FACTOR = 10    # Reward for assigning more slots
+    ASSIGNED_CNT_FACTOR = 0     # Reward for assigning more slots
     BUDGET_PENALTY_FACTOR = 0   # Unnecessary in this context
     
     def __init__(self):
@@ -360,6 +360,33 @@ def topk_selection(population: Population, k: int, select_size: int) -> list[Ind
     # Return top performers
     return candidates[:select_size]
 
+def std_gen_offspring(pop: Population, problem: Problem, pc: float, pm: float):
+    offspring = []
+
+    # Generate offspring until we have enough
+    while len(offspring) < pop.size:
+        # Crossover with probability pc
+        if random.random() < pc:
+            # Select parents using tournament selection
+            parent1, parent2 = topk_selection(pop, k=6, select_size=2)
+            
+            # Create offspring through crossover
+            child1, child2 = crossover(parent1, parent2)
+            
+            # Apply mutation with probability pm
+            if random.random() < pm:
+                child1 = mutation(child1, problem)
+            if random.random() < pm:
+                child2 = mutation(child2, problem)
+            
+            # Evaluate offspring fitness
+            child1.cal_fitness(problem)
+            child2.cal_fitness(problem)
+            
+            # Add to offspring pool
+            offspring.extend([child1, child2])
+            
+    return offspring
 
 def ga(num_gen: int, pop_size: int, problem: Problem,
        pc: float = 0.8, pm: float = 0.1, elite_ratio: float = 0.1,
@@ -396,30 +423,7 @@ def ga(num_gen: int, pop_size: int, problem: Problem,
     
     # Evolution loop
     for gen in range(num_gen):
-        offspring = []
-        
-        # Generate offspring until we have enough
-        while len(offspring) < pop_size:
-            # Crossover with probability pc
-            if random.random() < pc:
-                # Select parents using tournament selection
-                parent1, parent2 = topk_selection(population, k=6, select_size=2)
-                
-                # Create offspring through crossover
-                child1, child2 = crossover(parent1, parent2)
-                
-                # Apply mutation with probability pm
-                if random.random() < pm:
-                    child1 = mutation(child1, problem)
-                if random.random() < pm:
-                    child2 = mutation(child2, problem)
-                
-                # Evaluate offspring fitness
-                child1.cal_fitness(problem)
-                child2.cal_fitness(problem)
-                
-                # Add to offspring pool
-                offspring.extend([child1, child2])
+        offspring = std_gen_offspring(population, problem, pc, pm)
                 
         # Elite preservation and population replacement
         sorted_population = sorted(population.inds, key=lambda x: x.fitness, reverse=True)
@@ -596,23 +600,7 @@ def llm_ga(num_gen: int, pop_size: int,
         
         # Standard GA operations (same as regular GA)
         if not use_llm_flag:
-            while len(offspring) < pop_size:
-                if random.random() < pc:
-                    parent1, parent2 = topk_selection(population, k=6, select_size=2)
-                    # Standard crossover
-                    child1, child2 = crossover(parent1, parent2)
-                    
-                    # Apply mutation with probability pm
-                    if random.random() < pm:
-                        child1 = mutation(child1, problem)
-                    if random.random() < pm:
-                        child2 = mutation(child2, problem)
-                        
-                    
-                    child1.cal_fitness(problem)
-                    child2.cal_fitness(problem)
-                    
-                    offspring.extend([child1, child2])
+            offspring = std_gen_offspring(population, problem, pc, pm)
                     
         else:
             _print_with_debug("Using LLM to create offspring...", debug)

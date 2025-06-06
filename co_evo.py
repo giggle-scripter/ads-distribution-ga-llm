@@ -1,0 +1,407 @@
+import random
+import time
+from typing import List
+from problem import Problem
+from evo import Individual, Population, _print_with_debug, std_gen_offspring, topk_selection, mutation
+from llm_support import LLMSupporter, PromptBuilder
+import prompt_template as pt
+from pathlib import Path
+random.seed(42)
+def get_code_from_file(filepath: str):
+    path = Path(filepath)
+    return path.read_text(encoding='utf-8')
+
+FUNC_TEMPLATE = """
+def move(sol: List[int], problem: Problem) -> List[int]:
+    pass
+"""
+
+class HeuristicIndividual:
+    DEFAULT_FITNESS = 0
+    TEMPLATE_FUNC_NAME = 'move'
+    FORGET_FACTOR = 0.2
+    
+    def __init__(self):
+        self.chromosome: str = None
+        self.fitness = HeuristicIndividual.DEFAULT_FITNESS
+
+    
+    def apply(self, ind: Individual, problem: Problem):
+        
+        local_vars = {}
+        try:
+            exec(self.chromosome, globals(), local_vars)
+            func = local_vars[HeuristicIndividual.TEMPLATE_FUNC_NAME]
+            new_ind = Individual()
+            new_ind.chromosome = func(ind.chromosome.copy(), problem)
+            return new_ind
+        except Exception as e:
+            raise e
+            
+    def cal_fitness(self, inds: List[Individual], problem: Problem):
+        new_fitness = 0.0
+        success = 0
+        for ind in inds:
+            try:
+                new_ind = self.apply(ind, problem)
+                new = new_ind.cal_fitness(problem)
+                old = ind.cal_fitness(problem)
+                delta = (new - old)
+                new_fitness += delta / len(inds)
+                success += 1
+            except Exception:
+                continue
+        
+        if success == 0:
+            new_fitness = 0.0
+        
+        self.fitness = self.fitness * (1-HeuristicIndividual.FORGET_FACTOR) +\
+            new_fitness * HeuristicIndividual.FORGET_FACTOR
+        return self.fitness
+    
+    def reset(self):
+        self.fitness = 0
+    
+class HeuristicPopulation:
+    def __init__(self, size: int):
+        self.size = size
+        self.inds: List[HeuristicIndividual] = []
+        
+def llm_heuristic_init(num_init: int, problem: Problem, 
+                       prompt_builder: PromptBuilder, 
+                       llm_supporter: LLMSupporter,
+                       problem_code_file_path: str,
+                       debug: bool=False):
+    init_prompt = pt.HEURISTIC_INIT_TEMPLATE
+    problem_context = prompt_builder.get_problem_context(problem)
+    prompt = prompt_builder.build(template=init_prompt,
+                                  problem_context=problem_context,
+                                  num_init=num_init,
+                                  func_template=FUNC_TEMPLATE,
+                                  problem_code=get_code_from_file(problem_code_file_path))
+    json_response = llm_supporter.get_json_response(prompt)
+    
+    if json_response is None:
+        return None
+    if 'inited' not in json_response:
+        return None
+    
+    test_ind = Individual()
+    test_ind.chromosome = [-1] * problem.num_slots
+    
+    pop = HeuristicPopulation(size=num_init)
+    
+    for obj in json_response['inited']:
+        code = obj['code']
+        try:
+            new_ind = HeuristicIndividual()
+            new_ind.chromosome = code
+            new_ind.apply(test_ind, problem)
+            new_ind.reset()
+            pop.inds.append(new_ind)
+        except Exception as e:
+            _print_with_debug(str(e), debug)
+    
+    pop.size = len(pop.inds)
+        
+    return pop
+
+def llm_heuristic_crossover(p1: HeuristicIndividual, p2: HeuristicIndividual,
+                            problem: Problem,
+                            prompt_builder: PromptBuilder, 
+                            llm_supporter: LLMSupporter,
+                            problem_code_file_path: str,
+                            debug: bool=False):
+    crossover_prompt = pt.HEURISTIC_CROSSOVER_PROMPT
+    problem_context = prompt_builder.get_problem_context(problem)
+    prompt = prompt_builder.build(template=crossover_prompt,
+                                  problem_context=problem_context,
+                                  func_template=FUNC_TEMPLATE,
+                                  problem_code=get_code_from_file(problem_code_file_path),
+                                  heuristic_1=p1.chromosome,
+                                  heuristic_2=p2.chromosome)
+    
+    json_response = llm_supporter.get_json_response(prompt)
+    
+    if json_response is None:
+        return None, None
+    if 'recombined' not in json_response:
+        return None, None
+    
+    test_ind = Individual()
+    test_ind.chromosome = [-1] * problem.num_slots
+    
+    children = []
+    
+    for obj in json_response['recombined']:
+        code = obj['code']
+        try:
+            new_ind = HeuristicIndividual()
+            new_ind.chromosome = code
+            new_ind.apply(test_ind, problem)
+            new_ind.reset()
+            children.append(new_ind)
+        except Exception as e:
+            _print_with_debug(str(e), debug)
+            continue
+            
+    if len(children) < 2:
+        return None, None
+    return children[:2]
+
+def llm_heuristic_mutation(p: HeuristicIndividual,
+                           problem: Problem,
+                           prompt_builder: PromptBuilder, 
+                           llm_supporter: LLMSupporter,
+                           problem_code_file_path: str,
+                           debug: bool=False):
+    mutation_prompt = pt.HEURISTIC_MUTATION_TEMPLATE
+    problem_context = prompt_builder.get_problem_context(problem)
+    prompt = prompt_builder.build(template=mutation_prompt,
+                                  problem_context=problem_context,
+                                  func_template=FUNC_TEMPLATE,
+                                  problem_code=get_code_from_file(problem_code_file_path),
+                                  heuristic=p.chromosome)
+    
+    json_response = llm_supporter.get_json_response(prompt)
+    
+    if json_response is None:
+        return None
+    if 'rephrased' not in json_response:
+        return None
+    
+    test_ind = Individual()
+    test_ind.chromosome = [-1] * problem.num_slots
+
+    code = json_response['rephrased']
+    try:
+        new_ind = HeuristicIndividual()
+        new_ind.chromosome = code
+        new_ind.apply(test_ind, problem)
+        new_ind.reset()
+        return new_ind
+    except Exception as e:
+        _print_with_debug(str(e), debug)
+        return None
+    
+def get_heuristic_offspring(pop: HeuristicPopulation, problem: Problem,
+                            pc: float, pm: float,
+                            llm_supporter: LLMSupporter, prompt_builder: PromptBuilder,
+                            problem_code_filepath: str,
+                            debug: bool=False):
+    offspring = []
+
+    # Generate offspring until we have enough
+    while len(offspring) < pop.size * 2 // 3:
+        # Crossover with probability pc
+        if random.random() < pc:
+            # Select parents using random selection
+            parent1, parent2 = random.sample(pop.inds, 2)
+            
+            # Create offspring through crossover
+            child1, child2 = llm_heuristic_crossover(parent1, parent2,
+                                                     problem, prompt_builder,
+                                                     llm_supporter, 
+                                                     problem_code_filepath, debug)
+            
+            if child1 is None or child2 is None:
+                _print_with_debug('Crossover failed, try again', debug)
+                continue
+            
+            # Apply mutation with probability pm
+            if random.random() < pm:
+                child1_ = llm_heuristic_mutation(child1, problem,
+                                                prompt_builder, llm_supporter,
+                                                problem_code_filepath, debug)
+                if child1_ is not None:
+                    child1 = child1_
+                
+            if random.random() < pm:
+                child2_ = llm_heuristic_mutation(child1, problem,
+                                                prompt_builder, llm_supporter,
+                                                problem_code_filepath, debug)
+                if child2_ is not None:
+                    child2 = child2_
+            # Not evaluate
+            
+            # Add to offspring pool
+            offspring.extend([child1, child2])
+            
+    return offspring
+    
+def co_evo_llm(num_gen: int, pop_size: int, heuristic_pop_size: int,
+               problem: Problem, llm_supporter: LLMSupporter, prompt_builder: PromptBuilder, 
+               pc: float = 0.8, pm: float = 0.1, elite_ratio: float = 0.1,
+               heuristic_evo_cycle: int = 50, apply_heuristic_cycle: int = 100,
+               appliable_heuristics: int = 3,
+               early_stopping_gen: int = 500,
+               problem_code_filepath: str='safety_problem_code.txt',
+               debug: bool=True) -> tuple[Individual, dict]:
+    start_time = time.time()
+    # Initialize population
+    population = Population(pop_size)
+    population.random_generate(problem)
+    elite_cnt = int(max(1, pop_size * elite_ratio))
+    best = None
+    
+    # Initialize heuristic population
+    _print_with_debug(f'Init {heuristic_pop_size} heuristic from LLM', debug)
+    heu_pop = llm_heuristic_init(heuristic_pop_size,
+                                 problem, prompt_builder, llm_supporter,
+                                 problem_code_filepath, debug)
+    
+    if heu_pop is None:
+        return None, None
+    
+    _print_with_debug(f'Success init {heu_pop.size} inds.', debug)
+    heu_elite_cnt = int(max(1, heuristic_pop_size * elite_ratio * 2))
+    
+    no_improve = 0
+    
+    best = sorted(population.inds, key=lambda x: x.fitness, reverse=True)[0]
+    sol = best.chromosome
+    violations = problem.cal_violations(sol)
+    revenue = problem.cal_revenue(sol)
+    assigned_count = problem.cal_assigned_cnt(sol)
+    budget_penalty = problem.cal_budget_penalty(sol)
+    
+    _print_with_debug(f'Init: best fitness = {best.fitness:.2f}, '
+              f'violations = {violations}, revenue = {revenue:.2f}, '
+              f'budget penalty = {budget_penalty} '
+              f'assigned slots = {assigned_count}', debug)
+    
+    for gen in range(num_gen):
+        # Evo of first Population
+        offspring = std_gen_offspring(population, problem, pc, pm)
+                
+        # Elite preservation and population replacement
+        sorted_population = sorted(population.inds, key=lambda x: x.fitness, reverse=True)
+        elite_individuals = sorted_population[:elite_cnt]
+        non_elite_individuals = sorted_population[elite_cnt:]
+        
+        # Combine non-elite with offspring and randomly sample
+        replacement_pool = non_elite_individuals + offspring
+        selected_non_elite = random.sample(replacement_pool, k=population.size - elite_cnt)
+        
+        # Form new population
+        population.inds = elite_individuals + selected_non_elite
+        
+        # Update best solution
+        current_best = population.inds[0]  # Elite is sorted, so first is best
+        if best is None or current_best.fitness > best.fitness:
+            best = current_best
+            no_improve = 0
+        else: 
+            no_improve += 1
+            
+        # Progress reporting
+        sol = best.chromosome
+        violations = problem.cal_violations(sol)
+        revenue = problem.cal_revenue(sol)
+        assigned_count = problem.cal_assigned_cnt(sol)
+        budget_penalty = problem.cal_budget_penalty(sol)
+        
+        _print_with_debug(f'Gen {gen+1}, best fitness = {best.fitness:.2f}, '
+              f'violations = {violations}, revenue = {revenue:.2f}, '
+              f'budget penalty = {budget_penalty} '
+              f'assigned slots = {assigned_count}', debug)
+        
+        if gen % apply_heuristic_cycle == 0 and gen > 0:
+            _print_with_debug('Apply heuristic', debug)
+            # Choose best and random remain heuristic to apply
+            sorted_heu_pop = sorted(heu_pop.inds, key=lambda x: x.fitness, reverse=True)
+            appliable = sorted_heu_pop[:appliable_heuristics]
+            weights = [max([10, x.fitness]) for x in appliable]
+
+            _print_with_debug([x.fitness for x in appliable], debug)
+            _print_with_debug(weights, debug)
+            
+            offs = []
+            
+            to_move = population.inds
+            for ind in to_move:
+                heu = random.choices(appliable, weights=weights, k=1)[0]
+                # Select inds to apply
+                new_ind = heu.apply(ind, problem)
+                new_ind.cal_fitness(problem)
+                offs.append(new_ind)
+
+            no_improve_ids = []
+            
+            for i in range(len(population.inds)):
+                if offs[i].fitness <= population.inds[i].fitness:
+                    no_improve_ids.append(i)
+            n = len(offs)
+            offs = [offs[i] for i in range(n) if i not in no_improve_ids]
+            _print_with_debug(f'Len Offs {len(offs)}', debug)
+            
+            # Elite preservation and population replacement
+            sorted_population = sorted(population.inds, key=lambda x: x.fitness, reverse=True)
+            elite_individuals = sorted_population[:elite_cnt]
+            non_elite_individuals = sorted_population[elite_cnt:]
+            
+            # Combine non-elite with offspring and randomly sample
+            replacement_pool = non_elite_individuals + offs
+            selected_non_elite = random.sample(replacement_pool, k=population.size - elite_cnt)
+            
+            # Form new population
+            population.inds = elite_individuals + selected_non_elite
+            
+            # Update best solution
+            current_best = population.inds[0]  # Elite is sorted, so first is best
+            if best is None or current_best.fitness > best.fitness:
+                best = current_best
+                no_improve = 0
+                
+            # Progress reporting
+            sol = best.chromosome
+            violations = problem.cal_violations(sol)
+            revenue = problem.cal_revenue(sol)
+            assigned_count = problem.cal_assigned_cnt(sol)
+            budget_penalty = problem.cal_budget_penalty(sol)
+            
+            _print_with_debug(f'Gen {gen+1} (after memetic), best fitness = {best.fitness:.2f}, '
+                f'violations = {violations}, revenue = {revenue:.2f}, '
+                f'budget penalty = {budget_penalty} '
+                f'assigned slots = {assigned_count}', debug)
+        
+        # Phase 2:
+        if gen % heuristic_evo_cycle != 0:
+            for heu_inds in heu_pop.inds:
+                heu_inds.cal_fitness(population.inds, problem)
+        
+        elif gen % heuristic_evo_cycle == 0:
+            _print_with_debug('Starting heuristic evo generation', debug)
+            heu_offs = get_heuristic_offspring(heu_pop, problem, pc, pm,
+                                               llm_supporter, prompt_builder,
+                                               problem_code_filepath, debug)
+            sorted_heu_pop = sorted(heu_pop.inds, key=lambda x: x.fitness, reverse=True)
+            elite_heus = sorted_heu_pop[:heu_elite_cnt]
+            replacement_pool = sorted_heu_pop[heu_elite_cnt:] + heu_offs
+            
+            selected_non_elite = random.sample(replacement_pool, k=heu_pop.size - heu_elite_cnt)
+            
+            heu_pop.inds = elite_heus + selected_non_elite
+            heu_pop.size = len(heu_pop.inds)
+            
+            # Reset
+            for ind in heu_pop.inds:
+                ind.reset()
+            _print_with_debug(f'Heuristic pop size: {heu_pop.size}', debug)
+        
+        
+        
+        if no_improve > early_stopping_gen:
+            _print_with_debug('Early Stopping', debug)
+            break
+                
+    end_time = time.time()
+    stats = {
+        'solve_time': end_time - start_time,
+        'best_violation': violations,
+        'best_revenue': revenue,
+        'best_assigned_count': assigned_count,
+        'best_budget_penalty': budget_penalty,
+        'best_fitness': best.fitness
+    }
+    return best, stats
