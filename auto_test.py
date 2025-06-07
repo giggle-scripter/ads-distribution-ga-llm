@@ -6,7 +6,7 @@ import random
 
 from problem import read_file, Problem
 from llm_support import LLMSupporter, PromptBuilder
-from exact_alg import branch_and_bound
+from exact_alg import branch_and_bound, pure_backtracking
 from evo import ga, llm_ga
 from co_evo import co_evo_llm
 from heuristic import hill_climbing
@@ -22,8 +22,13 @@ llm_supporter = LLMSupporter(model)
 
 random.seed(42)
 
+def test_pure_backtracking(problem: Problem, problem_name: str=None):
+    sol, stats = pure_backtracking(problem, time_limit=2000.0)
+    print(f"Pure backtracking Solution for problem {problem_name}:", sol)
+    print(stats)
+
 def test_branch_and_bound(problem: Problem, problem_name: str=None):
-    sol, stats = branch_and_bound(problem, time_limit=1000.0)
+    sol, stats = branch_and_bound(problem, time_limit=2000.0)
     print(f"Branch and Bound Solution for problem {problem_name}:", sol)
     print(stats)
     

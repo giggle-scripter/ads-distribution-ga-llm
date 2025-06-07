@@ -24,8 +24,6 @@ random.seed(42)
 problem = read_file('test/test_10_many_ads.txt')
 
 from co_evo import co_evo_llm
-best, stats = co_evo_llm(500, 100, 16, problem,llm_supporter,prompt_builder,pc=0.8,
-                         pm=0.2,elite_ratio=0.1,heuristic_evo_cycle=50,apply_heuristic_cycle=50,
-                         appliable_heuristics=4)
+best, stats = ga(500,100,problem,pm=0.2)
 print(best)
 print(stats)
