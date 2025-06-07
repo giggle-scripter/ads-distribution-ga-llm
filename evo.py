@@ -352,7 +352,7 @@ def topk_selection(population: Population, k: int, select_size: int) -> list[Ind
     """
     # Randomly sample candidates for tournament
     tournament_size = min(k, population.size)
-    candidates = random.sample(population.inds, k=tournament_size)
+    candidates = random.sample(population.inds.copy(), k=tournament_size)
     
     # Sort by fitness (highest first)
     candidates.sort(key=lambda x: x.fitness, reverse=True)
