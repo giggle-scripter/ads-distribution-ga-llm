@@ -33,18 +33,18 @@ def test_branch_and_bound(problem: Problem, problem_name: str=None):
     print(stats)
     
 def test_std_ga(problem: Problem, problem_name: str=None):
-    best, stats = ga(num_gen=800, pop_size=100, problem=problem,
+    best, stats = ga(num_gen=500, pop_size=100, problem=problem,
                      pc=0.8, pm=0.2, elite_ratio=0.1,
                      debug=False)
     print(f"GA best solution for problem {problem_name}", best.chromosome)
     print(stats)
     
 def test_llm_ga(problem: Problem, problem_name: str=None):
-    best, stats = llm_ga(num_gen=800, pop_size=100, problem=problem,
+    best, stats = llm_ga(num_gen=500, pop_size=100, problem=problem,
                          pc=0.8, pm=0.2, elite_ratio=0.1,
                          llm_supporter=llm_supporter,
                          prompt_builder=prompt_builder,
-                         max_no_improve=90, max_llm_call=8,
+                         max_no_improve=90, max_llm_call=5,
                          debug=False)
     print(f"LLM GA best solution for problem {problem_name}", best.chromosome)
     print(stats)
@@ -56,11 +56,11 @@ def test_hill_climbing(problem: Problem, problem_name: str=None):
     print(stats)
     
 def test_co_evo(problem: Problem, problem_name: str=None):
-    best, stats = co_evo_llm(800, 100, 16, problem, llm_supporter,
+    best, stats = co_evo_llm(500, 100, 16, problem, llm_supporter,
                              prompt_builder, 
                              pc=0.8, pm=0.2, elite_ratio=0.1,
-                             heuristic_evo_cycle=80, appliable_heuristics=80,
-                             early_stopping_gen=600, 
+                             heuristic_evo_cycle=50, appliable_heuristics=50,
+                             early_stopping_gen=300, 
                              problem_code_filepath='safety_problem_code.txt',
                              debug=False)
     
