@@ -299,18 +299,6 @@ def co_evo_llm(num_gen: int, pop_size: int, heuristic_pop_size: int,
     
     no_improve = 0
     
-    best = sorted(population.inds, key=lambda x: x.fitness, reverse=True)[0]
-    sol = best.chromosome
-    violations = problem.cal_violations(sol)
-    revenue = problem.cal_revenue(sol)
-    assigned_count = problem.cal_assigned_cnt(sol)
-    budget_penalty = problem.cal_budget_penalty(sol)
-    
-    _print_with_debug(f'Init: best fitness = {best.fitness:.2f}, '
-              f'violations = {violations}, revenue = {revenue:.2f}, '
-              f'budget penalty = {budget_penalty} '
-              f'assigned slots = {assigned_count}', debug)
-    
     for gen in range(num_gen):
         if gen % 10 == 0:
             debug = True
