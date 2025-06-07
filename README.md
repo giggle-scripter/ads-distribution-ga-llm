@@ -24,7 +24,33 @@ Doanh thu được tính bằng cách sử dụng các hệ số nhân dựa tr�
 Để chỉnh sửa các thông số này, bạn có thể thay đổi các giá trị trong `problem.py`, phần `SLOTS_FACTOR` trong class `Problem`.
 
 ## Thuật toán
-Trong dự án này, nhóm đưa ra 3 thuật toán chính để giải bài toán:
+Trong dự án này, nhóm đưa ra 4 thuật toán chính để giải bài toán:
+
+### Pure Backtracking (Exact Algorithm)
+Thuật toán quay lui thuần túy không có tối ưu hóa cắt nhánh, duyệt toàn bộ không gian nghiệm để tìm ra nghiệm tối ưu toàn cục.
+
+**Đặc điểm chính:**
+- **Không gian tìm kiếm**: Duyệt một cách có hệ thống toàn bộ không gian nghiệm có thể, mỗi slot có thể được gán một quảng cáo hoặc để trống (-1)
+- **Kiểm tra vi phạm**: Tại mỗi bước gán, thuật toán kiểm tra:
+  - Ràng buộc conflict: Không có 2 quảng cáo xung đột được gán cùng một billboard
+  - Ràng buộc unique: Mỗi quảng cáo chỉ được sử dụng một lần
+  - Ràng buộc ngân sách: Chi phí thực tế không vượt quá ngân sách tối đa (tùy chọn)
+- **Không có cắt nhánh**: Khác với Branch and Bound, thuật toán này không sử dụng bất kỳ kỹ thuật cắt nhánh nào, đảm bảo khám phá hoàn toàn không gian tìm kiếm
+- **Ứng cử viên**: Tại mỗi slot, thuật toán xem xét:
+  - Tùy chọn để slot trống (không gán quảng cáo)
+  - Tất cả các quảng cáo chưa được sử dụng và không vi phạm ràng buộc
+- **Quay lui**: Khi gặp vi phạm ràng buộc hoặc hoàn thành một nhánh, thuật toán quay lui và thử các khả năng khác
+
+**Ưu điểm**: 
+- Đảm bảo tìm được nghiệm tối ưu toàn cục
+- Đơn giản trong việc triển khai và hiểu thuật toán
+- Không có nguy cơ bỏ sót nghiệm tốt do cắt nhánh sai
+
+**Nhược điểm**: 
+- Độ phức tạp tăng theo cấp số nhân
+- Chậm hơn đáng kể so với Branch and Bound
+- Chỉ phù hợp với bài toán kích thước rất nhỏ
+
 ### Branch and Bound (Exact Algorithm)
 Thuật toán chính xác sử dụng kỹ thuật quay lui (backtracking) kết hợp với cắt nhánh (branch and bound) để tìm ra nghiệm tối ưu toàn cục.
 
@@ -42,7 +68,7 @@ Thuật toán chính xác sử dụng kỹ thuật quay lui (backtracking) kết
   - Tùy chọn để slot trống (không gán quảng cáo)
   - Tất cả các quảng cáo chưa được sử dụng và không vi phạm ràng buộc
 
-**Ưu điểm**: Đảm bảo tìm được nghiệm tối ưu toàn cục
+**Ưu điểm**: Đảm bảo tìm được nghiệm tối ưu toàn cục với hiệu suất tốt hơn Pure Backtracking
 **Nhược điểm**: Độ phức tạp tăng theo cấp số nhân, chỉ phù hợp với bài toán kích thước nhỏ và trung bình
 
 ### Genetic Algorithm (GA)
@@ -53,17 +79,26 @@ Thuật toán GA được sử dụng với
 - Selection: Sử dụng Top-K Selection để chọn cá thể cha mẹ.
 - Replacement: Luôn giữ lại một vài cá thể tốt nhất của quần thể cũ.
 ### LLM-GA
-Sử dụng LLM như là một phương pháp để thoát khỏi tối ưu cục bộ. Quy trình tại mỗi vòng generation vẫn giống hệt GA. Tuy nhiên nếu sau một vài thế hệ liên tiếp không cải thiện được lời giải, sẽ:
-1. Chọn 1 vài cá thể theo chiến lược nào đó từ quần thể (sau bước replacement).
-2. Với mỗi cá thể, xây dựng prompt tương ứng với problem context và solution.
-3. Gửi prompt và yêu cầu LLM trả về một/một chuỗi các transformation để biến đổi lời giải hiện có thành một lời giải mới.
-4. Thêm các cá thể mới vào quần thể rồi thực hiện sắp xếp và lựa chọn.
+Sử dụng LLM như là một phương pháp để thoát khỏi tối ưu cục bộ. Quy trình tại mỗi vòng generation vẫn giống hệt GA. Tuy nhiên nếu sau một vài thế hệ liên tiếp không cải thiện được lời giải, thế hệ kế tiếp sẽ thực hiện crossover và mutation hoàn toàn bằng LLM trên toàn bộ quần thể.
 
-Các transformation được cung cấp:
-- `unassigned`: Unassign một vài vị trí.
-- `assign-new`: Assign một slot với 1 ad mới.
-- `swap-assign`: Chọn 2 vị trí và hoán đổi giá trị gán tại 2 vị trí đó (hoán đổi 2 ad).
-- `swap-billboard`: Chọn 2 billboard và hoán đổi tất cả các ad trên 2 billboard (nếu số mặt khác nhau thì một vài ad trên billboard nhiều mặt hơn được giữ lại.)
+Các toán tử `llm_crossover` và `llm_mutation` hoàn toàn dựa vào LLM để lai ghép và đột biến, với kỳ vọng giúp thoát khỏi tối ưu cục bộ.
+
+### Co-Evo with Memetic
+Ý tưởng chính của thuật toán này là tiến hóa song song 2 quần thể
+- Quần thể 1 là quần thể các lời giải tiến hóa như GA thông thường.
+- Quần thể 2 là quần thể các heuristic để cải thiện lời giải, tiến hóa bằng cách sử dụng LLM-GP.
+- Sau một số vòng, việc chuyển giao tri thức sẽ diễn ra, lúc đó một vài heuristic trong quần thể 2 được lựa chọn để áp dụng lên các cá thể của quần thể 1, qua đó giúp cải thiện lời giải.
+
+Với quần thể thứ 2:
+- Cá thể: Mỗi cá thể là một đoạn code python với đầu vào là 1 lời giải và 1 problem, đầu ra là 1 lời giải mới.
+- Khởi tạo: Dùng LLM để khởi tạo quần thể ban đầu.
+- Lai ghép: Dùng LLM để thực hiện `recombine` hai đoạn code cha mẹ.
+- Đột biến: Dùng LLM để thực hiện `rephrase` đoạn code cha mẹ.
+- Tần suất tiến hóa: Để giảm chi phí, quần thể heuristic sẽ không tiến hóa thường xuyên.
+- Đánh giá: Fitness của mỗi cá thể sẽ được cập nhật ở mỗi vòng tiến hóa của quần thể 1 mà quần thể 2 không tiến hóa. Ở mỗi vòng như vậy `new_fitness` của vòng đó được tính bằng độ cải thiện khi áp dụng heuristic lên toàn bộ lời giải trong quần thể 1. Sau đó cập nhật 
+```python
+fitness = (1-forget_factor)*fitness + forget_factor*new_fitness
+```
 
 ## Kiến trúc hệ thống
 ### Core Modules
@@ -85,14 +120,90 @@ Các transformation được cung cấp:
 - **LLMSupporter**: Quản lý các tương tác với LLM và phân tích phản hồi
 - **Transformations**: Thực hiện áp dụng các cải tiến giải pháp được gợi ý bởi LLM
 
-#### 4. `test.py` - Application Entry Point
+#### 4. `exact_alg.py` - Exact Algorithms
+- **PureBacktrackingSupporter**: Triển khai thuật toán quay lui thuần túy không có cắt nhánh
+- **BranchAndBoundSupporter**: Triển khai thuật toán quay lui với tối ưu hóa cắt nhánh
+- **Feasibility checking**: Kiểm tra tính khả thi của các phép gán
+- **Upper bound estimation**: Ước tính cận trên cho thuật toán Branch and Bound
+
+#### 5. `test.py` - Application Entry Point
 - **Configuration**: Thiết lập các tham số thuật toán và cấu hình LLM
 - **Execution workflow**: Thiết lập quy trình mẫu cho việc tối ưu hóa bằng GA, LLM-GA.
 - **Results display**: In kết quả phân tích giải pháp.
+
+#### 6. `test_generator.py` - Test Case Generation
+- **Problem generation**: Tạo các bài toán thử nghiệm với các đặc điểm khác nhau
+- **Conflict patterns**: Hỗ trợ tạo các mẫu conflict khác nhau (random, clique, star)
+- **Parameter variations**: Điều chỉnh các tham số như phân phối giá, ngân sách, tỷ lệ conflict
+
 ### Configuration and additional files
 - **.env**: File cấu hình môi trường, chứa các biến môi trường như API keys.
 - **README.md**: Tài liệu hướng dẫn sử dụng và mô tả hệ thống.
 - **requirements.txt**: Danh sách các thư viện Python cần thiết.
+
+## Test Cases Generation
+Hệ thống cung cấp 10 test case được tạo tự động với các đặc điểm khác nhau để đánh giá hiệu suất của các thuật toán:
+
+### 1. Small Random (`test_1_small_random.txt`)
+- **Cấu hình**: 2 billboards, 10 ads, conflict rate 15%
+- **Mục đích**: Test case nhỏ để kiểm tra tính đúng đắn của thuật toán
+- **Đặc điểm**: Ít conflict, phù hợp cho exact algorithms
+
+### 2. Medium Random (`test_2_medium_random.txt`)
+- **Cấu hình**: 5 billboards, 20 ads, conflict rate 20%
+- **Mục đích**: Test case trung bình với mức độ phức tạp vừa phải
+- **Đặc điểm**: Cân bằng giữa kích thước và độ phức tạp
+
+### 3. Large Random (`test_3_large_random.txt`)
+- **Cấu hình**: 15 billboards, 50 ads, conflict rate 25%
+- **Mục đích**: Test case lớn để đánh giá khả năng mở rộng
+- **Đặc điểm**: Thách thức cho exact algorithms, phù hợp cho GA
+
+### 4. Small Clique (`test_4_small_clique.txt`)
+- **Cấu hình**: 3 billboards, 16 ads, 2 cliques size ~5
+- **Mục đích**: Test pattern conflict dạng clique (tất cả conflict với nhau)
+- **Đặc điểm**: Conflict tập trung, tạo ra các ràng buộc mạnh
+
+### 5. Large Clique (`test_5_large_clique.txt`)
+- **Cấu hình**: 15 billboards, 50 ads, 4 cliques size ~10
+- **Mục đích**: Test clique pattern ở quy mô lớn
+- **Đặc điểm**: Nhiều nhóm conflict độc lập
+
+### 6. Medium Star (`test_6_medium_star.txt`)
+- **Cấu hình**: 7 billboards, 30 ads, 5 centroids với 5 satellites mỗi cái
+- **Mục đích**: Test pattern conflict dạng sao (một ad conflict với nhiều ad khác)
+- **Đặc điểm**: Ads có base price cao trở thành trung tâm conflict
+
+### 7. Medium Robust (`test_7_medium_robust.txt`)
+- **Cấu hình**: 7 billboards, 30 ads, conflict rate 30%, robust price distribution
+- **Mục đích**: Test với phân phối giá không đồng đều (20% ads có giá cao 500, 80% ads có giá 200-300)
+- **Đặc điểm**: Tạo ra sự khác biệt lớn về giá trị ads
+
+### 8. Medium Approx Budget (`test_8_medium_approx_budget.txt`)
+- **Cấu hình**: 7 billboards, 30 ads, conflict rate 30%, max_budget ≈ base_price
+- **Mục đích**: Test khi max budget gần bằng base price (budget constraint chặt)
+- **Đặc điểm**: Ràng buộc ngân sách ảnh hưởng mạnh đến doanh thu
+
+### 9. Medium Low Budget (`test_9_medium_low_budget.txt`)
+- **Cấu hình**: 7 billboards, 30 ads, conflict rate 30%, max_budget < base_price
+- **Mục đích**: Test khi max budget thấp hơn base price
+- **Đặc điểm**: Revenue bị giới hạn mạnh bởi budget constraint
+
+### 10. Many Ads (`test_10_many_ads.txt`)
+- **Cấu hình**: 8 billboards, 70 ads, conflict rate 30%
+- **Mục đích**: Test với số lượng ads lớn so với số slots
+- **Đặc điểm**: Nhiều lựa chọn, cạnh tranh cao giữa các ads
+
+### Các tham số sinh test:
+- **base_price_dist**: 
+  - `'uniform'`: Phân phối đều từ 200-300
+  - `'robust'`: 20% ads có giá 500, 80% có giá 200-300
+- **max_budget_type**:
+  - `'high'`: max_budget = base_price × (1.3-2.5)
+  - `'approx'`: max_budget = base_price × (1.05-2.05)  
+  - `'low'`: max_budget = base_price × (1.05-1.55)
+- **conflict_rate**: Tỷ lệ conflict giữa các cặp ads (0.0-1.0)
+
 ## Getting Started
 ### Yêu cầu hệ thống
 - **Python**: Version 3.11 or higher
@@ -146,39 +257,58 @@ Cấu trúc nhập từ console tương tự như file.
 ```python
 problem = random_generate(num_billboards=5, num_ads=10)
 ```
+#### 4. **Sử dụng test cases có sẵn**
+Sử dụng các test case đã được tạo sẵn trong thư mục `test/`:
+```python
+problem = read_file('test/test_1_small_random.txt')
+```
+#### 5. **Tạo test cases tùy chỉnh**
+Sử dụng các hàm trong `test_generator.py`:
+```python
+from test_generator import generate_randomly_conflict, generate_clique_conflict, generate_star_conflict
+
+# Tạo problem với random conflicts
+problem = generate_randomly_conflict(num_billboards=5, num_ads=20, conflict_rate=0.3)
+
+# Tạo problem với clique conflicts  
+problem = generate_clique_conflict(num_billboards=3, num_ads=16, clique_size=5, max_num_cliques=2)
+
+# Tạo problem với star conflicts
+problem = generate_star_conflict(num_billboards=7, num_ads=30, num_centroids=5, satellites=5)
+```
+
 ### Chạy ứng dụng
 #### Chạy mẫu có sẵn
-Trong file `test.py`, bạn có thể chạy các ví dụ mẫu đã được định nghĩa sẵn bằng cách import các hàm tương ứng
-vào `main.py` và chạy:
+Trong file `auto_test.py`, bạn có thể chạy các ví dụ mẫu đã được định nghĩa sẵn bằng cách import các hàm tương ứng vào `main.py` và chạy:
 ```bash
 python -u main.py
 ```
 Ví dụ `main.py` có thể bao gồm các hàm như:
 ```python
-from test import test_std_ga, test_llm_ga
+from auto_test import test_std_ga, test_llm_ga
 test_std_ga() # Test thuật toán di truyền tiêu chuẩn
 test_llm_ga() # Test thuật toán di truyền tăng cường LLM
 ```
-Bạn hoàn toàn có thể chỉnh sửa cấu hình bằng cách tìm các `ga_config` và `llm_ga_config` trong `test.py`.
+Bạn hoàn toàn có thể chỉnh sửa cấu hình và chạy lại.
 #### Chạy từ đầu
 Cần tuân theo các bước sau:
 1. Import các module cần thiết:
 ```python
-# Import genetic algorithm implementations
-from evo import ga, llm_ga
-
-# Import problem handling utilities
-from problem import read_file, random_generate
-
-# Import standard libraries
-import random
 import os
 from dotenv import load_dotenv
-
 import google.generativeai as genai
 
-# Import LLM support components
-from llm_support import PromptBuilder, LLMSupporter, SOL_PRO_TEMPLATE
+import random
+
+from problem import read_file, read_console, Problem
+from llm_support import LLMSupporter, PromptBuilder
+from exact_alg import branch_and_bound, pure_backtracking
+from evo import ga, llm_ga
+from co_evo import co_evo_llm
+from heuristic import hill_climbing
+
+# Load enviroment variables
+load_dotenv()
 ```
 2. Tải biến môi trường từ file `.env`:
 ```python
@@ -193,8 +323,8 @@ genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
 model = genai.GenerativeModel('gemini-2.0-flash')
 
 # Set up LLM integration
-prompt_builder = PromptBuilder(SOL_PRO_TEMPLATE)
-llm_supporter = LLMSupporter(model, prompt_builder)
+prompt_builder = PromptBuilder()
+llm_supporter = LLMSupporter(model)
 ```
 
 4. Thiết lập seed cho random (cần thiết cho sự ổn định của các lần chạy khác nhau).
@@ -202,61 +332,57 @@ llm_supporter = LLMSupporter(model, prompt_builder)
 random.seed(42)
 ```
 
-5. Thiết lập cấu hình cho GA, LLM-GA
+5. Đọc problem từ file hoặc từ console
 ```python
-ga_config = {
-    "num_gen": 500,
-    "pop_size": 100,
-    "pc": 0.8,
-    "pm": 0.1,
-    "elite_ratio": 0.1,
-}
+# Đọc từ console
+problem = read_console()
 
-llm_ga_config = {
-    "num_gen": 500,
-    "pop_size": 100,
-    "pc": 0.8,
-    "pm": 0.1,
-    "elite_ratio": 0.1,
-    "max_no_improvement": 40,
-    "max_transform_inds": 8,
-    "transform_chosen_policy": 'topk',
-    "max_time_transform": 8
-}
+# Đọc từ file
+problem = read_file('/path/to/test')
 ```
-Chi tiết các tham số và ý nghĩa xem ở `evo.py`.
-6. Đọc bài toán, có thể dùng 1 trong 3 cách đã nêu.
+
+6. Thực hiện gọi hàm các thuật toán
+- Exact Algorithm
 ```python
-problem = ...
+# Giải bằng Pure backtracking
+sol, stats = pure_backtracking(problem, time_limit=2000.0)
+print(sol)
+print(stats) # Thống kê việc giải
+
+# Giải bằng branch and bound
+sol, stats = branch_and_bound(problem, time_limit=2000.0)
+print(sol)
+print(stats) # Thống kê việc giải
 ```
-7. Gọi hàm `ga` hoặc `llm_ga` để tìm kiếm lời giải.
+- Các thuật toán tiến hóa
 ```python
-best_solution = ga(
-    num_gen=ga_config["num_gen"],  # Fewer generations for quick comparison
-    pop_size=ga_config["pop_size"],
-    problem=problem,
-    pc=ga_config["pc"],
-    pm=ga_config["pm"],
-    elite_ratio=ga_config["elite_ratio"]
-)
+# Giải bằng GA
+best, stats = ga(num_gen=800, pop_size=100, problem=problem,
+                 pc=0.8, pm=0.2, elite_ratio=0.1,
+                 debug=False)
+print(best.chromosome)
+print(stats)
+
+# LLM - GA
+best, stats = llm_ga(num_gen=800, pop_size=100, problem=problem,
+                     pc=0.8, pm=0.2, elite_ratio=0.1,
+                     llm_supporter=llm_supporter,
+                     prompt_builder=prompt_builder,
+                     max_no_improve=90, max_llm_call=8,
+                     debug=False)
+print(best.chromosome)
+print(stats)
+
+# Co-Evo-Memetic
+best, stats = co_evo_llm(800, 100, 16, problem, llm_supporter,
+                         prompt_builder, 
+                         pc=0.8, pm=0.2, elite_ratio=0.1,
+                         heuristic_evo_cycle=80, appliable_heuristics=80,
+                         early_stopping_gen=600, 
+                         problem_code_filepath='safety_problem_code.txt',
+                         debug=False)
 ```
-hoặc
-```python
-best_solution = llm_ga(
-    num_gen=llm_ga_config["num_gen"],  # Fewer generations for quick comparison
-    pop_size=llm_ga_config["pop_size"],
-    problem=problem,
-    pc=llm_ga_config["pc"],
-    pm=llm_ga_config["pm"],
-    elite_ratio=llm_ga_config["elite_ratio"],
-    max_no_improvement=llm_ga_config["max_no_improvement"],
-    max_transform_inds=llm_ga_config["max_transform_inds"],
-    transform_chosen_policy=llm_ga_config["transform_chosen_policy"],
-    llm_supporter=llm_supporter,
-    max_time_transform=llm_ga_config["max_time_transform"]
-)
-```
-8. In kết quả (tham khảo `test.py`).
+
 ## Các lỗi thường gặp
 ### Gặp Rate-Limit với API của Google.
 Lỗi này thường mang mã 429 với thông điệp kiểu như
