@@ -312,6 +312,11 @@ def co_evo_llm(num_gen: int, pop_size: int, heuristic_pop_size: int,
               f'assigned slots = {assigned_count}', debug)
     
     for gen in range(num_gen):
+        if gen % 10 == 0:
+            debug = True
+        else: 
+            debug = False
+        
         # Evo of first Population
         offspring = std_gen_offspring(population, problem, pc, pm)
                 
@@ -364,9 +369,12 @@ def co_evo_llm(num_gen: int, pop_size: int, heuristic_pop_size: int,
             for ind in to_move:
                 heu = random.choices(appliable, weights=weights, k=1)[0]
                 # Select inds to apply
-                new_ind = heu.apply(ind, problem)
-                new_ind.cal_fitness(problem)
-                offs.append(new_ind)
+                try:
+                    new_ind = heu.apply(ind, problem)
+                    new_ind.cal_fitness(problem)
+                    offs.append(new_ind)
+                except Exception as e:
+                    offs.append(ind)
 
             no_improve_ids = []
             

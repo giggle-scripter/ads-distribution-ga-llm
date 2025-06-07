@@ -423,6 +423,11 @@ def ga(num_gen: int, pop_size: int, problem: Problem,
     
     # Evolution loop
     for gen in range(num_gen):
+        if gen % 10 == 0:
+            debug = True
+        else:
+            debug = False
+        
         offspring = std_gen_offspring(population, problem, pc, pm)
                 
         # Elite preservation and population replacement
@@ -596,6 +601,11 @@ def llm_ga(num_gen: int, pop_size: int,
     
     # Evolution loop
     for gen in range(num_gen):
+        if gen % 10 == 0:
+            debug = True
+        else:
+            debug = False
+            
         offspring = []
         
         # Standard GA operations (same as regular GA)
