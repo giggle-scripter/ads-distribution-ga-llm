@@ -51,7 +51,7 @@ def test_llm_ga(problem: Problem, problem_name: str=None):
     
 def test_hill_climbing(problem: Problem, problem_name: str=None):
     sol, stats = hill_climbing(problem, max_iterations=40000, 
-                               num_restarts=10, time_limit=1000)
+                               num_restarts=8, time_limit=1000)
     print(f'HillClimbing best solution for problem {problem_name}', sol)
     print(stats)
     
