@@ -86,7 +86,7 @@ test_type = [
 def test_all(test_from: int = 1, test_to: int = NUM_OF_TEST):
     for i in range(test_from, test_to + 1):
         print(f"====Test {i}====")
-        test_file = TEST_NAME_TEMPLATE.format(id=i, test_type=test_type[i])
+        test_file = TEST_NAME_TEMPLATE.format(id=i, test_type=test_type[i-1])
         problem = read_file(test_file)
         
         if problem.num_slots <= 25:
