@@ -89,12 +89,12 @@ def test_all(test_from: int = 1, test_to: int = NUM_OF_TEST):
         test_file = TEST_NAME_TEMPLATE.format(id=i, test_type=test_type[i-1])
         problem = read_file(test_file)
         
-        if problem.num_slots <= 25:
+        ''' if problem.num_slots <= 25:
             print("Test Pure Backtracking")
             test_pure_backtracking(problem, problem_name=str(i))
             
             print("\nTest Branch and Bound")
-            test_branch_and_bound(problem, problem_name=str(i))
+            test_branch_and_bound(problem, problem_name=str(i))'''
         
         print("\nTest Standard GA")
         test_std_ga(problem, problem_name=str(i))
