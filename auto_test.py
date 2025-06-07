@@ -60,7 +60,7 @@ def test_co_evo(problem: Problem, problem_name: str=None):
                              prompt_builder, 
                              pc=0.8, pm=0.2, elite_ratio=0.1,
                              heuristic_evo_cycle=50, apply_heuristic_cycle=50,
-                             early_stopping_gen=300, appliable_heuristics=3,
+                             early_stopping_gen=300, appliable_heuristics=4,
                              problem_code_filepath='safety_problem_code.txt',
                              debug=False)
     
