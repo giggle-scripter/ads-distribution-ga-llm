@@ -377,8 +377,8 @@ print(stats)
 best, stats = co_evo_llm(800, 100, 16, problem, llm_supporter,
                          prompt_builder, 
                          pc=0.8, pm=0.2, elite_ratio=0.1,
-                         heuristic_evo_cycle=80, appliable_heuristics=80,
-                         early_stopping_gen=600, 
+                         heuristic_evo_cycle=80, apply_heuristic_cycle=80,
+                         early_stopping_gen=600, appliable_heuristics=4,
                          problem_code_filepath='safety_problem_code.txt',
                          debug=False)
 ```
