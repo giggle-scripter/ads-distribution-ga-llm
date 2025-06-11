@@ -88,7 +88,11 @@ test_type = [
     'medium_robust',
     'medium_approx_budget',
     'medium_low_budget',
-    'many_ads'
+    'many_ads',
+    'few_ads',
+    'very_large_approx_budget',
+    'very_large_robust_approx_budget',
+    'very_large_high_conflict_approx_budget'
 ]
 
 def test_all(test_from: int = 1, test_to: int = NUM_OF_TEST):
