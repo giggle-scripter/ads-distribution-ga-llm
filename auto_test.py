@@ -39,6 +39,7 @@ def test_llm_ga(problem: Problem, problem_name: str=None, attempts: int = 3):
     for i in range(1, attempts + 1): 
         key = os.getenv(f'GOOGLE_API_KEY_{i}')
         if key is None:
+            print('Not found')
             key = os.getenv(f'GOOGLE_API_KEY')
         genai.configure(api_key=key)
         model = genai.GenerativeModel('gemini-2.0-flash')
