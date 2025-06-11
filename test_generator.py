@@ -143,9 +143,13 @@ problem_args = [
     ['large_clique', generate_clique_conflict, [15, 50, 10, 4]],
     ['medium_star', generate_star_conflict, [7, 30, 5, 5]],
     ['medium_robust', generate_randomly_conflict, [7, 30, 0.3, 'robust']],
-    ['medium_approx_budget', generate_randomly_conflict, [7, 30, 0.3, 'approx']],
-    ['medium_low_budget', generate_randomly_conflict, [7, 30, 0.3, 'low']],
-    ['many_ads', generate_randomly_conflict, [8, 70, 0.3]]
+    ['medium_approx_budget', generate_randomly_conflict, [7, 30, 0.3, 'uniform', 'approx']],
+    ['medium_low_budget', generate_randomly_conflict, [7, 30, 0.3, 'uniform', 'low']],
+    ['many_ads', generate_randomly_conflict, [8, 70, 0.3]],
+    ['few_ads', generate_randomly_conflict, [8, 20, 0.3]],
+    ['very_large_approx_budget', generate_randomly_conflict, [25, 120, 0.3, 'uniform', 'approx']],
+    ['very_large_robust_approx_budget', generate_randomly_conflict, [25, 120, 0.3, 'robust', 'approx']],
+    ['very_large_high_conflict_approx_budget', generate_randomly_conflict, [25, 120, 0.5, 'uniform', 'approx']]
 ]
 
 for i, args in enumerate(problem_args):

@@ -14,11 +14,6 @@ from heuristic import hill_climbing
 # Load enviroment variables
 load_dotenv()
 
-genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
-model = genai.GenerativeModel('gemini-2.0-flash')
-
-prompt_builder = PromptBuilder()
-llm_supporter = LLMSupporter(model)
 
 random.seed(42)
 
@@ -39,15 +34,27 @@ def test_std_ga(problem: Problem, problem_name: str=None):
     print(f"GA best solution for problem {problem_name}", best.chromosome)
     print(stats)
     
-def test_llm_ga(problem: Problem, problem_name: str=None):
-    best, stats = llm_ga(num_gen=500, pop_size=100, problem=problem,
-                         pc=0.8, pm=0.2, elite_ratio=0.1,
-                         llm_supporter=llm_supporter,
-                         prompt_builder=prompt_builder,
-                         max_no_improve=90, max_llm_call=5,
-                         debug=False)
-    print(f"LLM GA best solution for problem {problem_name}", best.chromosome)
-    print(stats)
+def test_llm_ga(problem: Problem, problem_name: str=None, attempts: int = 3):
+    sol_res = []
+    for i in range(1, attempts + 1): 
+        key = os.getenv(f'GOOGLE_API_KEY_{i}')
+        if key is None:
+            key = os.getenv(f'GOOGLE_API_KEY')
+        genai.configure(api_key=key)
+        model = genai.GenerativeModel('gemini-2.0-flash')
+
+        prompt_builder = PromptBuilder()
+        llm_supporter = LLMSupporter(model)
+        best, stats = llm_ga(num_gen=500, pop_size=100, problem=problem,
+                            pc=0.8, pm=0.2, elite_ratio=0.1,
+                            llm_supporter=llm_supporter,
+                            prompt_builder=prompt_builder,
+                            max_no_improve=80, max_llm_call=5,
+                            debug=False)
+        print(f"LLM GA best solution for problem {problem_name}, attempt {i} with api: {key}", best.chromosome)
+        print(stats)
+        sol_res.append(stats)
+    print(sol_res)
     
 def test_hill_climbing(problem: Problem, problem_name: str=None):
     sol, stats = hill_climbing(problem, max_iterations=40000, 
@@ -55,7 +62,7 @@ def test_hill_climbing(problem: Problem, problem_name: str=None):
     print(f'HillClimbing best solution for problem {problem_name}', sol)
     print(stats)
     
-def test_co_evo(problem: Problem, problem_name: str=None):
+'''def test_co_evo(problem: Problem, problem_name: str=None):
     best, stats = co_evo_llm(500, 100, 16, problem, llm_supporter,
                              prompt_builder, 
                              pc=0.8, pm=0.2, elite_ratio=0.1,
@@ -65,7 +72,7 @@ def test_co_evo(problem: Problem, problem_name: str=None):
                              debug=False)
     
     print(f"Co Evo with LLM best solution for problem {problem_name}", best.chromosome)
-    print(stats)
+    print(stats)'''
     
 NUM_OF_TEST = 10
 TEST_NAME_TEMPLATE = "test/test_{id}_{test_type}.txt"
@@ -89,12 +96,12 @@ def test_all(test_from: int = 1, test_to: int = NUM_OF_TEST):
         test_file = TEST_NAME_TEMPLATE.format(id=i, test_type=test_type[i-1])
         problem = read_file(test_file)
         
-        ''' if problem.num_slots <= 25:
+        if problem.num_slots <= 25:
             print("Test Pure Backtracking")
             test_pure_backtracking(problem, problem_name=str(i))
             
             print("\nTest Branch and Bound")
-            test_branch_and_bound(problem, problem_name=str(i))'''
+            test_branch_and_bound(problem, problem_name=str(i))
         
         print("\nTest Standard GA")
         test_std_ga(problem, problem_name=str(i))
@@ -104,6 +111,3 @@ def test_all(test_from: int = 1, test_to: int = NUM_OF_TEST):
         
         print("\nTest LLM GA")
         test_llm_ga(problem, problem_name=str(i))
-        
-        print('\nTest Co-Evo')
-        test_co_evo(problem, problem_name=str(i))
